@@ -1,0 +1,785 @@
+{
+  "settings": {
+    "company": "أوربت للاستشارات الهندسية",
+    "currency": "EGP",
+    "language": "ar",
+    "workDays": 26,
+    "lateDeductionMethod": "salary",
+    "lateDeductionPerMinute": 1.5,
+    "overtimeCalculationMethod": "salary",
+    "overtimeMultiplier": 1.5,
+    "overtimeRatePerHour": 45,
+    "currentMonthPayrollMode": "to_date",
+    "geofenceLat": 30.0444,
+    "geofenceLng": 31.2357,
+    "geofenceRadius": 300,
+    "requireFace": false,
+    "requireGPS": false,
+    "theme": "light",
+    "branches": [
+      "القاهرة",
+      "الجيزة",
+      "الإسكندرية"
+    ],
+    "branchCurrencies": {
+      "القاهرة": "EGP",
+      "الجيزة": "EGP",
+      "الإسكندرية": "EGP"
+    },
+    "departments": [
+      "الموارد البشرية",
+      "العمليات",
+      "المبيعات",
+      "الحسابات",
+      "الدعم الفني"
+    ],
+    "leaveTypes": [
+      {
+        "id": "annual",
+        "name": "سنوية",
+        "paid": true,
+        "annualDays": 21
+      },
+      {
+        "id": "sick",
+        "name": "مرضية",
+        "paid": true,
+        "annualDays": 14
+      },
+      {
+        "id": "casual",
+        "name": "عارضة",
+        "paid": true,
+        "annualDays": 7
+      },
+      {
+        "id": "unpaid",
+        "name": "بدون راتب",
+        "paid": false,
+        "annualDays": 0
+      },
+      {
+        "id": "maternity",
+        "name": "وضع ورعاية طفل",
+        "paid": true,
+        "annualDays": 90
+      }
+    ],
+    "expenseCategories": [
+      "إيجارات",
+      "مرافق",
+      "رواتب وخدمات",
+      "مستلزمات مكتبية",
+      "صيانة",
+      "انتقالات",
+      "ضيافة",
+      "اتصالات وإنترنت",
+      "رسوم حكومية",
+      "أخرى"
+    ],
+    "deductionTypes": [
+      "جزاء إداري",
+      "غياب",
+      "تأخير",
+      "سلفة",
+      "تلف أو فقد عهدة",
+      "أخرى"
+    ],
+    "rewardTypes": [
+      "حافز أداء",
+      "تحقيق مستهدف",
+      "مكافأة استثنائية",
+      "عمل إضافي مميز",
+      "مكافأة مناسبة",
+      "أخرى"
+    ],
+    "documentCategories": [
+      "عقد عمل",
+      "بطاقة هوية",
+      "جواز سفر",
+      "مؤهل دراسي",
+      "شهادة خبرة",
+      "تأمينات",
+      "ترخيص مهني",
+      "إقرار وسياسة",
+      "أخرى"
+    ],
+    "permissionProfiles": [
+      {
+        "id": "hr",
+        "name": "موظف الموارد البشرية",
+        "permissions": [
+          "dashboard",
+          "services",
+          "organization",
+          "approvals",
+          "selfservice",
+          "employees",
+          "documents",
+          "attendance",
+          "leaves",
+          "shifts",
+          "missions",
+          "adjustments",
+          "custody",
+          "reports",
+          "holidays",
+          "permissions",
+          "decisions",
+          "meetings",
+          "shiftRequests",
+          "workInterruptions",
+          "evaluations",
+          "recruitment",
+          "terminations",
+          "tasks",
+          "complaints",
+          "letters",
+          "notifications",
+          "announcements"
+        ]
+      },
+      {
+        "id": "finance",
+        "name": "موظف المالية",
+        "permissions": [
+          "dashboard",
+          "services",
+          "expenses",
+          "adjustments",
+          "custody",
+          "payroll",
+          "reports",
+          "advances",
+          "dues"
+        ]
+      }
+    ],
+    "timezone": "Africa/Cairo",
+    "maxGpsAccuracyMeters": 100,
+    "poorGpsAccuracyPolicy": "block",
+    "requireOvertimeApproval": true,
+    "useBranchGeofence": false,
+    "outsideBranchPolicy": "review",
+    "verificationMode": "gps_or_camera",
+    "geofenceMode": "review",
+    "branchLocations": {}
+  },
+  "users": [
+    {
+      "id": "u1",
+      "employeeId": "e1",
+      "name": "أحمد محمود",
+      "email": "admin@hr.local",
+      "role": "admin",
+      "active": true
+    },
+    {
+      "id": "u2",
+      "employeeId": "e2",
+      "name": "سارة علي",
+      "email": "manager@hr.local",
+      "role": "manager",
+      "active": true
+    },
+    {
+      "id": "u3",
+      "employeeId": "e3",
+      "name": "محمد حسن",
+      "email": "employee@hr.local",
+      "role": "employee",
+      "active": true
+    }
+  ],
+  "employees": [
+    {
+      "id": "e1",
+      "code": "EMP-001",
+      "name": "أحمد محمود",
+      "email": "admin@hr.local",
+      "phone": "01010000001",
+      "department": "الموارد البشرية",
+      "jobTitle": "مدير الموارد البشرية",
+      "branch": "القاهرة",
+      "company": "أوربت للاستشارات الهندسية",
+      "hireDate": "2022-02-01",
+      "salary": 18000,
+      "shiftId": "s1",
+      "managerId": "",
+      "status": "active"
+    },
+    {
+      "id": "e2",
+      "code": "EMP-002",
+      "name": "سارة علي",
+      "email": "manager@hr.local",
+      "phone": "01010000002",
+      "department": "العمليات",
+      "jobTitle": "مدير عمليات",
+      "branch": "القاهرة",
+      "company": "أوربت للاستشارات الهندسية",
+      "hireDate": "2022-06-15",
+      "salary": 15000,
+      "shiftId": "s1",
+      "managerId": "e1",
+      "status": "active"
+    },
+    {
+      "id": "e3",
+      "code": "EMP-003",
+      "name": "محمد حسن",
+      "email": "employee@hr.local",
+      "phone": "01010000003",
+      "department": "المبيعات",
+      "jobTitle": "مندوب مبيعات",
+      "branch": "الجيزة",
+      "company": "أوربت للاستشارات الهندسية",
+      "hireDate": "2024-01-10",
+      "salary": 9000,
+      "shiftId": "s1",
+      "managerId": "e2",
+      "status": "active"
+    },
+    {
+      "id": "e4",
+      "code": "EMP-004",
+      "name": "مريم يوسف",
+      "email": "mariam@company.com",
+      "phone": "01010000004",
+      "department": "الحسابات",
+      "jobTitle": "محاسب",
+      "branch": "القاهرة",
+      "company": "أوربت للاستشارات الهندسية",
+      "hireDate": "2023-09-01",
+      "salary": 11000,
+      "shiftId": "s1",
+      "managerId": "e1",
+      "status": "active"
+    },
+    {
+      "id": "e5",
+      "code": "EMP-005",
+      "name": "عمر خالد",
+      "email": "omar@company.com",
+      "phone": "01010000005",
+      "department": "الدعم الفني",
+      "jobTitle": "مهندس دعم",
+      "branch": "الإسكندرية",
+      "company": "أوربت للاستشارات الهندسية",
+      "hireDate": "2025-03-20",
+      "salary": 12000,
+      "shiftId": "s2",
+      "managerId": "e2",
+      "status": "active"
+    }
+  ],
+  "shifts": [
+    {
+      "id": "s1",
+      "name": "الوردية الصباحية",
+      "start": "09:00",
+      "end": "17:00",
+      "grace": 15,
+      "workDays": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      "daySchedules": {
+        "0": {
+          "enabled": true,
+          "start": "09:00",
+          "end": "17:00"
+        },
+        "1": {
+          "enabled": true,
+          "start": "09:00",
+          "end": "17:00"
+        },
+        "2": {
+          "enabled": true,
+          "start": "09:00",
+          "end": "17:00"
+        },
+        "3": {
+          "enabled": true,
+          "start": "09:00",
+          "end": "17:00"
+        },
+        "4": {
+          "enabled": true,
+          "start": "09:00",
+          "end": "17:00"
+        },
+        "5": {
+          "enabled": false,
+          "start": "09:00",
+          "end": "17:00"
+        },
+        "6": {
+          "enabled": false,
+          "start": "09:00",
+          "end": "17:00"
+        }
+      }
+    },
+    {
+      "id": "s2",
+      "name": "الوردية المسائية",
+      "start": "14:00",
+      "end": "22:00",
+      "grace": 10,
+      "workDays": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4"
+      ],
+      "daySchedules": {
+        "0": {
+          "enabled": true,
+          "start": "14:00",
+          "end": "22:00"
+        },
+        "1": {
+          "enabled": true,
+          "start": "14:00",
+          "end": "22:00"
+        },
+        "2": {
+          "enabled": true,
+          "start": "14:00",
+          "end": "22:00"
+        },
+        "3": {
+          "enabled": true,
+          "start": "14:00",
+          "end": "22:00"
+        },
+        "4": {
+          "enabled": true,
+          "start": "14:00",
+          "end": "22:00"
+        },
+        "5": {
+          "enabled": false,
+          "start": "14:00",
+          "end": "22:00"
+        },
+        "6": {
+          "enabled": false,
+          "start": "14:00",
+          "end": "22:00"
+        }
+      }
+    }
+  ],
+  "attendance": [
+    {
+      "id": "a_1784040269732_lv03r",
+      "employeeId": "e1",
+      "date": "2026-07-14",
+      "checkIn": "2026-07-14T08:55:00.000Z",
+      "checkOut": null,
+      "lateMinutes": 0,
+      "overtimeMinutes": 0,
+      "status": "present",
+      "location": "المقر الرئيسي",
+      "faceVerified": true,
+      "geoVerified": true
+    },
+    {
+      "id": "a_1784040269739_4myud",
+      "employeeId": "e2",
+      "date": "2026-07-14",
+      "checkIn": "2026-07-14T09:08:00.000Z",
+      "checkOut": null,
+      "lateMinutes": 0,
+      "overtimeMinutes": 0,
+      "status": "present",
+      "location": "المقر الرئيسي",
+      "faceVerified": true,
+      "geoVerified": true
+    },
+    {
+      "id": "a_1784040269739_r3s9f",
+      "employeeId": "e3",
+      "date": "2026-07-14",
+      "checkIn": "2026-07-14T09:24:00.000Z",
+      "checkOut": null,
+      "lateMinutes": 9,
+      "overtimeMinutes": 0,
+      "status": "late",
+      "location": "فرع الجيزة",
+      "faceVerified": false,
+      "geoVerified": true
+    },
+    {
+      "id": "a_1784040269739_8k1b8",
+      "employeeId": "e4",
+      "date": "2026-07-14",
+      "checkIn": "2026-07-14T08:48:00.000Z",
+      "checkOut": null,
+      "lateMinutes": 0,
+      "overtimeMinutes": 0,
+      "status": "present",
+      "location": "المقر الرئيسي",
+      "faceVerified": false,
+      "geoVerified": false
+    },
+    {
+      "id": "a_1784040269739_wqvsf",
+      "employeeId": "e3",
+      "date": "2026-07-12",
+      "checkIn": "2026-07-13T09:05:00.000Z",
+      "checkOut": "2026-07-13T17:40:00.000Z",
+      "lateMinutes": 0,
+      "overtimeMinutes": 40,
+      "status": "present",
+      "location": "فرع الجيزة",
+      "faceVerified": true,
+      "geoVerified": true
+    }
+  ],
+  "leaves": [
+    {
+      "id": "l1",
+      "employeeId": "e3",
+      "type": "سنوية",
+      "from": "2026-07-14",
+      "to": "2026-07-14",
+      "days": 1,
+      "reason": "ظرف عائلي",
+      "status": "pending",
+      "createdAt": "2026-07-14T14:44:29.739Z"
+    },
+    {
+      "id": "l2",
+      "employeeId": "e4",
+      "type": "مرضية",
+      "from": "2026-07-08",
+      "to": "2026-07-09",
+      "days": 2,
+      "reason": "تقرير طبي",
+      "status": "approved",
+      "createdAt": "2026-07-07T10:00:00Z"
+    }
+  ],
+  "missions": [
+    {
+      "id": "m1",
+      "employeeId": "e3",
+      "title": "زيارة عميل",
+      "date": "2026-07-14",
+      "from": "11:00",
+      "to": "14:00",
+      "location": "مدينة نصر",
+      "status": "approved",
+      "notes": "عرض الخدمة الجديدة"
+    }
+  ],
+  "expenses": [
+    {
+      "id": "x1",
+      "title": "مستلزمات تشغيل المكتب",
+      "branch": "القاهرة",
+      "currency": "EGP",
+      "date": "2026-07-14",
+      "category": "مستلزمات مكتبية",
+      "supplier": "مورد تجريبي",
+      "paymentMethod": "تحويل بنكي",
+      "invoiceNo": "INV-001",
+      "amount": 1280,
+      "description": "شراء أدوات ومستلزمات تشغيل للمكتب",
+      "custodyId": "c2",
+      "attachmentName": "فاتورة-تجريبية.pdf",
+      "attachmentType": "application/pdf",
+      "attachmentData": "",
+      "status": "approved",
+      "createdBy": "u1",
+      "createdAt": "2026-07-14T14:44:29.739Z"
+    }
+  ],
+  "adjustments": [
+    {
+      "id": "adj1",
+      "kind": "reward",
+      "employeeId": "e3",
+      "date": "2026-07-14",
+      "rewardType": "تحقيق مستهدف",
+      "amount": 500,
+      "reason": "تحقيق مستهدف المبيعات",
+      "status": "approved",
+      "createdAt": "2026-07-14T14:44:29.739Z"
+    },
+    {
+      "id": "adj2",
+      "kind": "deduction",
+      "employeeId": "e3",
+      "date": "2026-07-14",
+      "deductionType": "جزاء إداري",
+      "calculationMethod": "fixed",
+      "days": 0,
+      "workDaysBasis": 26,
+      "dailyRate": 0,
+      "amount": 150,
+      "reason": "خصم إداري تجريبي",
+      "status": "pending",
+      "createdAt": "2026-07-14T14:44:29.739Z"
+    }
+  ],
+  "custodies": [
+    {
+      "id": "c1",
+      "custodyType": "asset",
+      "employeeId": "e5",
+      "branch": "الإسكندرية",
+      "item": "لابتوب Dell Latitude",
+      "serial": "ORB-LT-205",
+      "quantity": 1,
+      "value": 35000,
+      "assignedDate": "2025-03-20",
+      "returnDate": "",
+      "returnedCash": 0,
+      "status": "assigned",
+      "notes": "الجهاز مع الشاحن والحقيبة"
+    },
+    {
+      "id": "c2",
+      "custodyType": "financial",
+      "employeeId": "e4",
+      "branch": "القاهرة",
+      "item": "عهدة مشتريات المكتب - يوليو",
+      "serial": "CASH-2026-07",
+      "quantity": 1,
+      "value": 5000,
+      "assignedDate": "2026-07-14",
+      "returnDate": "",
+      "returnedCash": 0,
+      "status": "assigned",
+      "notes": "تُسوّى من خلال مصروفات الشركة المرتبطة"
+    }
+  ],
+  "holidays": [
+    {
+      "id": "h1",
+      "name": "عطلة رسمية تجريبية",
+      "from": "2026-07-14",
+      "to": "2026-07-14",
+      "branch": "",
+      "paid": "true",
+      "notes": "تُطبق على جميع الفروع",
+      "status": "active"
+    }
+  ],
+  "permissions": [
+    {
+      "id": "pr1",
+      "employeeId": "e3",
+      "date": "2026-07-14",
+      "from": "13:00",
+      "to": "15:00",
+      "reason": "موعد شخصي",
+      "status": "pending",
+      "createdAt": "2026-07-14T14:44:29.739Z"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "d1",
+      "number": "DEC-001",
+      "title": "اعتماد سياسة العمل المرن",
+      "date": "2026-07-14",
+      "employeeId": "",
+      "branch": "القاهرة",
+      "notes": "قرار إداري تجريبي",
+      "status": "issued"
+    }
+  ],
+  "meetings": [
+    {
+      "id": "mt1",
+      "title": "اجتماع متابعة المشروعات",
+      "date": "2026-07-14",
+      "from": "10:00",
+      "to": "11:00",
+      "location": "قاعة الاجتماعات",
+      "attendees": "مديرو الأقسام",
+      "notes": "مراجعة نسب الإنجاز",
+      "status": "scheduled"
+    }
+  ],
+  "shiftRequests": [
+    {
+      "id": "sr1",
+      "employeeId": "e3",
+      "date": "2026-07-14",
+      "requestType": "overtime",
+      "targetShiftId": "",
+      "hours": 2,
+      "reason": "إنهاء عرض عميل",
+      "status": "pending"
+    }
+  ],
+  "biometricDevices": [
+    {
+      "id": "bd1",
+      "name": "جهاز بصمة المقر الرئيسي",
+      "branch": "القاهرة",
+      "deviceType": "بصمة وجه وإصبع",
+      "serial": "ORB-BIO-001",
+      "ip": "192.168.1.50",
+      "lastSync": "2026-07-14T14:44:29.739Z",
+      "status": "connected"
+    }
+  ],
+  "workInterruptions": [],
+  "evaluations": [
+    {
+      "id": "ev1",
+      "employeeId": "e3",
+      "period": "2026-07",
+      "evaluatorId": "e2",
+      "score": 82,
+      "strengths": "التواصل مع العملاء",
+      "improvements": "إدارة الوقت",
+      "status": "draft"
+    }
+  ],
+  "recruitment": [
+    {
+      "id": "rc1",
+      "candidateName": "مرشح تجريبي",
+      "jobTitle": "مهندس موقع",
+      "department": "العمليات",
+      "branch": "القاهرة",
+      "phone": "01000000000",
+      "email": "candidate@example.com",
+      "stage": "interview",
+      "interviewDate": "2026-07-14",
+      "notes": "مقابلة أولية"
+    }
+  ],
+  "terminations": [],
+  "advances": [
+    {
+      "id": "av1",
+      "employeeId": "e4",
+      "date": "2026-07-14",
+      "amount": 2000,
+      "installments": 2,
+      "startMonth": "2026-07",
+      "reason": "سلفة موظف",
+      "status": "pending"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "tk1",
+      "employeeId": "e5",
+      "title": "مراجعة أجهزة الشبكة",
+      "date": "2026-07-14",
+      "dueDate": "2026-07-14",
+      "priority": "high",
+      "notes": "رفع تقرير بالحالة",
+      "status": "in_progress"
+    }
+  ],
+  "dues": [
+    {
+      "id": "du1",
+      "employeeId": "e3",
+      "date": "2026-07-14",
+      "type": "بدل انتقال",
+      "amount": 350,
+      "description": "مأمورية عميل",
+      "status": "approved"
+    }
+  ],
+  "complaints": [
+    {
+      "id": "cp1",
+      "employeeId": "e3",
+      "againstEmployeeId": "",
+      "type": "complaint",
+      "date": "2026-07-14",
+      "title": "طلب مراجعة إدارية",
+      "details": "سجل تجريبي لعرض دورة الشكوى",
+      "penaltyAmount": 0,
+      "status": "open"
+    }
+  ],
+  "letters": [
+    {
+      "id": "lt1",
+      "employeeId": "e4",
+      "type": "مفردات مرتب",
+      "date": "2026-07-14",
+      "subject": "إفادة مفردات راتب",
+      "body": "خطاب صادر لأغراض إدارية",
+      "status": "issued"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "nt1",
+      "title": "تحديث نظام الموارد البشرية",
+      "audience": "all",
+      "date": "2026-07-14",
+      "message": "تم إطلاق مركز الخدمات الجديد.",
+      "status": "sent"
+    }
+  ],
+  "customPages": [
+    {
+      "id": "pg1",
+      "title": "دليل الموظف",
+      "slug": "employee-guide",
+      "content": "مرحبًا بك في دليل سياسات وإجراءات الشركة.",
+      "visibility": "employees",
+      "status": "published"
+    }
+  ],
+  "announcements": [
+    {
+      "id": "an1",
+      "title": "مرحبًا بمركز الخدمات",
+      "from": "2026-07-14",
+      "to": "2026-07-14",
+      "audience": "all",
+      "message": "يمكن الآن إدارة الخدمات الإدارية من مكان واحد.",
+      "status": "published"
+    }
+  ],
+  "documents": [
+    {
+      "id": "doc1",
+      "employeeId": "e3",
+      "category": "عقد عمل",
+      "title": "عقد العمل السنوي",
+      "number": "CON-2026-003",
+      "issueDate": "2026-01-01",
+      "expiryDate": "2026-08-03",
+      "notes": "عقد تجريبي قابل للتجديد",
+      "attachmentName": "",
+      "attachmentType": "",
+      "attachmentData": "",
+      "createdAt": "2026-07-14T14:44:29.739Z"
+    }
+  ],
+  "auditLog": [
+    {
+      "id": "log1",
+      "date": "2026-07-14T14:44:29.739Z",
+      "userId": "u1",
+      "userName": "أحمد محمود",
+      "action": "تهيئة النظام",
+      "module": "النظام",
+      "details": "إنشاء بيانات النسخة التجريبية"
+    }
+  ],
+  "payroll": []
+}
