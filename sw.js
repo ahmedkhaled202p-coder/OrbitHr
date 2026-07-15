@@ -1,4 +1,4 @@
-const CACHE = 'orbit-hr-v430-ready-static';
+const CACHE = 'orbit-hr-v480-expense-branch-static';
 const ASSETS = [
   './','./index.html','./styles.css','./app.js','./manifest.json',
   './orbit-mark-ui.png','./orbit-logo-ui.png','./icon-192.png','./icon-512.png','./privacy.html','./terms.html'

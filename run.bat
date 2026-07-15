@@ -1,8 +1,5 @@
 @echo off
-cd /d "%~dp0"
+if "%ORBIT_HR_HOST%"=="" set ORBIT_HR_HOST=127.0.0.1
+if "%ORBIT_HR_PORT%"=="" set ORBIT_HR_PORT=8080
+REM Set ORBIT_HR_PUBLIC_ORIGIN and ORBIT_HR_ALLOWED_ORIGINS in .env after choosing your domain.
 python start_server.py
-if errorlevel 1 (
-  echo.
-  echo Python is required. Install Python 3, then run this file again.
-  pause
-)

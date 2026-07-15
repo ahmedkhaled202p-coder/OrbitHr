@@ -486,3 +486,9 @@ body{background-image:radial-gradient(circle at 8% 0%,color-mix(in srgb,var(--pr
 .server-tools-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:14px}
 .orbit-server-tools{border:1px solid rgba(139,100,47,.18);background:linear-gradient(135deg,rgba(139,100,47,.09),rgba(255,255,255,.96))}
 @media(max-width:760px){.orbit-server-badge{left:10px;right:10px;bottom:10px;justify-content:center}.server-tools-grid{grid-template-columns:1fr}}
+
+/* v4.8: branch-grouped company expenses */
+.expense-branch-list{display:grid;gap:18px}
+.expense-branch-card .branch-expense-metrics{margin:12px 0 16px}
+.expense-report-branch{margin-top:14px}
+.expense-report-branch .card-title{margin-bottom:12px}

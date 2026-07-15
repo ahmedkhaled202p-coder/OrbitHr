@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_NAME = 'أوربت للاستشارات الهندسية';
-const APP_VERSION = '4.3.0-ready';
+let APP_VERSION = '4.8.0-expenses-by-branch';
 const APP_KEY = 'peopleflow_hr_v1'; // الحفاظ على بيانات الإصدارات السابقة
 const SESSION_KEY = 'peopleflow_session_v1';
 const VIEW_KEY = 'peopleflow_view_v1';
@@ -302,6 +302,10 @@ function expenseBranch(x){return x?.branch||emp(x?.employeeId)?.branch||getBranc
 function expenseCurrency(x){const c=x?.currency;return CURRENCIES[c]?c:getBranchCurrency(expenseBranch(x))}
 function moneyForExpense(x){return money(x?.amount||0,expenseCurrency(x))}
 function expenseMoneySummary(records,status=''){const list=status?records.filter(x=>x.status===status):records,totals={};list.forEach(x=>{const c=expenseCurrency(x);totals[c]=(totals[c]||0)+Number(x.amount||0)});const entries=Object.entries(totals);return entries.length?entries.map(([c,v])=>money(v,c)).join('<br>'):money(0,state.settings.currency)}
+function expenseBranchName(x){return String(expenseBranch(x)||'غير محدد').trim()||'غير محدد'}
+function expenseBranchGroups(records,{includeEmpty=false}={}){const map=new Map();if(includeEmpty)getBranches().forEach(b=>map.set(b,[]));records.forEach(x=>{const b=expenseBranchName(x);if(!map.has(b))map.set(b,[]);map.get(b).push(x)});return [...map.entries()].map(([branch,records])=>({branch,records:[...records].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')))})).filter(g=>includeEmpty||g.records.length).sort((a,b)=>{const ai=getBranches().indexOf(a.branch),bi=getBranches().indexOf(b.branch);if(ai!==-1||bi!==-1)return (ai===-1?999:ai)-(bi===-1?999:bi);return a.branch.localeCompare(b.branch,'ar')})}
+function expenseBranchSummaryTable(records,{includeEmpty=false,compact=false}={}){const groups=expenseBranchGroups(records,{includeEmpty});if(!groups.length)return noReportData('لا توجد مصروفات للعرض');const branchSum=(branch,list)=>list.length?sumExpensesByCurrency(list):money(0,getBranchCurrency(branch));return `<div class="table-wrap"><table class="table ${compact?'compact-table':''}"><thead><tr><th>الفرع</th><th>العملة</th><th>عدد السجلات</th><th>إجمالي المصروفات</th><th>المعتمد</th><th>قيد المراجعة</th><th>المرفوض</th><th>مرتبطة بعهد</th></tr></thead><tbody>${groups.map(g=>{const approved=g.records.filter(x=>x.status==='approved'),pending=g.records.filter(x=>x.status==='pending'),rejected=g.records.filter(x=>x.status==='rejected'),linked=g.records.filter(x=>x.custodyId);return `<tr><td><strong>${escapeHTML(g.branch)}</strong></td><td>${branchCurrencyLabel(g.branch)}</td><td>${g.records.length}</td><td><strong>${branchSum(g.branch,g.records)}</strong></td><td>${branchSum(g.branch,approved)}<div class="small muted">${approved.length} سجل</div></td><td>${branchSum(g.branch,pending)}<div class="small muted">${pending.length} سجل</div></td><td>${branchSum(g.branch,rejected)}<div class="small muted">${rejected.length} سجل</div></td><td>${linked.length}</td></tr>`}).join('')}</tbody></table></div>`}
+function expenseCategorySummaryTable(records){const map=new Map();records.forEach(x=>{const key=x.category||'غير محدد';if(!map.has(key))map.set(key,[]);map.get(key).push(x)});const rows=[...map.entries()].sort((a,b)=>b[1].reduce((s,x)=>s+Number(x.amount||0),0)-a[1].reduce((s,x)=>s+Number(x.amount||0),0));if(!rows.length)return noReportData('لا توجد فئات مصروفات');return `<div class="table-wrap"><table class="table compact-table"><thead><tr><th>الفئة</th><th>عدد السجلات</th><th>الإجمالي</th><th>المعتمد</th></tr></thead><tbody>${rows.map(([cat,list])=>`<tr><td>${escapeHTML(cat)}</td><td>${list.length}</td><td>${sumExpensesByCurrency(list)}</td><td>${sumExpensesByCurrency(list.filter(x=>x.status==='approved'))}</td></tr>`).join('')}</tbody></table></div>`}
 function custodyById(id){return state.custodies.find(x=>x.id===id)}
 function custodyTypeLabel(x){return x?.custodyType==='financial'?'عهدة مالية':'عهدة عينية'}
 function custodyBranch(x){return x?.branch||emp(x?.employeeId)?.branch||''}
@@ -914,13 +918,19 @@ function renderMissions(){const ids=visibleEmployees().map(e=>e.id),list=state.m
 function missionModal(){openModal('طلب مأمورية',`<form id="missionForm" class="form-grid"><div class="field"><label>الموظف</label><select class="select" name="employeeId" ${!canManage()?'disabled':''}>${visibleEmployees().map(e=>`<option value="${e.id}" ${e.id===currentUser.employeeId?'selected':''}>${escapeHTML(e.name)}</option>`).join('')}</select></div>${field('عنوان المأمورية','title','','text',true)}${field('التاريخ','date',todayISO(),'date',true)}${field('من الساعة','from','10:00','time',true)}${field('إلى الساعة','to','14:00','time',true)}${field('الموقع','location','','text',true)}<div class="field full"><label>ملاحظات</label><textarea class="textarea" name="notes" rows="3"></textarea></div></form>`,saveMission)}
 function saveMission(){const o=Object.fromEntries(new FormData($('#missionForm')).entries());if(!o.employeeId)o.employeeId=currentUser.employeeId;state.missions.push({id:uid('m'),...o,status:'pending'});saveState();closeModal();render();toast('تم إرسال طلب المأمورية')}
 
+
+function expenseTableRowsHTML(list,{actions=true}={}){return list.map(x=>`<tr data-record-id="${x.id}" data-status="${escapeHTML(x.status||'')}"><td>${fmtDate(x.date)}</td><td><strong class="expense-title-cell">${escapeHTML(x.title||'مصروف شركة')}</strong></td><td><strong>${escapeHTML(expenseBranch(x)||'-')}</strong><div class="small muted">${escapeHTML(currencyLabel(expenseCurrency(x)))} (${expenseCurrency(x)})</div></td><td>${escapeHTML(x.category||'-')}</td><td>${x.custodyId?`<button class="link-btn" onclick="goToCustody('${x.custodyId}')">${escapeHTML(expenseCustodyLabel(x))}</button>`:'<span class="muted">بدون عهدة</span>'}</td><td>${escapeHTML(x.supplier||'-')}</td><td>${escapeHTML(x.paymentMethod||'-')}</td><td>${escapeHTML(x.invoiceNo||'-')}</td><td>${escapeHTML(x.description||'-')}</td><td><strong>${moneyForExpense(x)}</strong></td><td>${expenseAttachmentCell(x)}</td><td>${statusBadge(x.status)}</td>${actions?`<td><div class="actions"><button class="btn btn-secondary btn-sm" onclick="viewExpense('${x.id}')">عرض</button><button class="btn btn-secondary btn-sm" onclick="expenseModal('${x.id}')">تعديل</button>${x.status==='pending'?`<button class="btn btn-success btn-sm" onclick="expenseStatus('${x.id}','approved')">اعتماد</button><button class="btn btn-danger btn-sm" onclick="expenseStatus('${x.id}','rejected')">رفض</button>`:''}<button class="btn btn-danger btn-sm" onclick="deleteExpense('${x.id}')">حذف</button></div></td>`:''}</tr>`).join('')}
+function expenseTableHTML(list,{actions=true,compact=false}={}){const cols=actions?13:12;return `<div class="table-wrap"><table class="table expense-table ${compact?'compact-table':''}"><thead><tr><th>التاريخ</th><th>اسم المصروف</th><th>الفرع</th><th>الفئة</th><th>العهدة المالية</th><th>المورد / الجهة</th><th>طريقة الدفع</th><th>رقم الفاتورة</th><th>الوصف</th><th>المبلغ</th><th>المرفق</th><th>الحالة</th>${actions?'<th>إجراءات</th>':''}</tr></thead><tbody>${list.length?expenseTableRowsHTML(list,{actions}):`<tr><td colspan="${cols}">${noReportData('لا توجد مصروفات مسجلة')}</td></tr>`}</tbody></table></div>`}
+function expenseBranchCardHTML(group){const r=group.records,approved=r.filter(x=>x.status==='approved'),pending=r.filter(x=>x.status==='pending'),rejected=r.filter(x=>x.status==='rejected'),linked=r.filter(x=>x.custodyId);return `<section class="card expense-branch-card" data-expense-branch="${escapeHTML(group.branch)}"><div class="card-title"><div><h3>فرع ${escapeHTML(group.branch)}</h3><div class="small muted" style="margin-top:5px">${r.length} سجل · العملة: ${branchCurrencyLabel(group.branch)} · المعتمد يظهر في التقارير المالية</div></div><div class="actions"><button class="btn btn-secondary btn-sm" onclick="expenseModal()">＋ مصروف جديد</button></div></div><div class="grid grid-4 branch-expense-metrics">${metric('▣',sumExpensesByCurrency(r),'إجمالي الفرع','كل الحالات')}${metric('✓',sumExpensesByCurrency(approved),'المعتمد',`${approved.length} سجل`)}${metric('⌛',sumExpensesByCurrency(pending),'قيد المراجعة',`${pending.length} سجل`)}${metric('🔗',linked.length,'مرتبطة بعهد',rejected.length?`${rejected.length} مرفوض`: 'لا يوجد مرفوض')}</div>${expenseTableHTML(r,{actions:true})}</section>`}
+function expenseGroupedBranchCards(records){const groups=expenseBranchGroups(records);return groups.length?groups.map(expenseBranchCardHTML).join(''):`<div class="card">${noReportData('لا توجد مصروفات مسجلة')}</div>`}
+
 function renderExpenses(){
-  const list=[...state.expenses].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-  const linked=list.filter(x=>x.custodyId);
-  return `<div class="page-head"><div><h2>مصروفات الشركة</h2><p>تسجيل المصروفات التشغيلية لكل فرع، مع إمكانية ربط المصروف بعهدة مالية ومتابعة الرصيد المتبقي.</p></div><button class="btn btn-primary" onclick="expenseModal()">＋ إضافة مصروف شركة</button></div>
-  <div class="grid grid-4">${metric('▣',expenseMoneySummary(list),'إجمالي المصروفات','كل الحالات')}${metric('⌛',expenseMoneySummary(list,'pending'),'قيد المراجعة','تحتاج اعتماد')}${metric('✓',expenseMoneySummary(list,'approved'),'المعتمد','جاهز للتقارير')}${metric('🔗',linked.length,'مصروفات مرتبطة بعهد','الربط المالي')}</div>
-  <div class="card" style="margin-top:18px"><div class="card-title"><div><h3>سجل مصروفات الشركة</h3><div class="small muted" style="margin-top:5px">عملة المصروف تُحدد تلقائيًا من الفرع، والعهدة المالية تُخصم بعد اعتماد المصروف.</div></div><div class="actions"><button class="btn btn-secondary btn-sm" onclick="exportExpensesCSV()">⇩ تصدير CSV</button></div></div>
-  <div class="table-wrap"><table class="table expense-table"><thead><tr><th>التاريخ</th><th>اسم المصروف</th><th>الفرع</th><th>الفئة</th><th>العهدة المالية</th><th>المورد / الجهة</th><th>طريقة الدفع</th><th>رقم الفاتورة</th><th>الوصف</th><th>المبلغ</th><th>المرفق</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody>${list.map(x=>`<tr data-record-id="${x.id}" data-status="${escapeHTML(x.status||'')}"><td>${fmtDate(x.date)}</td><td><strong class="expense-title-cell">${escapeHTML(x.title||'مصروف شركة')}</strong></td><td><strong>${escapeHTML(expenseBranch(x)||'-')}</strong><div class="small muted">${escapeHTML(currencyLabel(expenseCurrency(x)))} (${expenseCurrency(x)})</div></td><td>${escapeHTML(x.category||'-')}</td><td>${x.custodyId?`<button class="link-btn" onclick="goToCustody('${x.custodyId}')">${escapeHTML(expenseCustodyLabel(x))}</button>`:'<span class="muted">بدون عهدة</span>'}</td><td>${escapeHTML(x.supplier||'-')}</td><td>${escapeHTML(x.paymentMethod||'-')}</td><td>${escapeHTML(x.invoiceNo||'-')}</td><td>${escapeHTML(x.description||'-')}</td><td><strong>${moneyForExpense(x)}</strong></td><td>${expenseAttachmentCell(x)}</td><td>${statusBadge(x.status)}</td><td><div class="actions"><button class="btn btn-secondary btn-sm" onclick="viewExpense('${x.id}')">عرض</button><button class="btn btn-secondary btn-sm" onclick="expenseModal('${x.id}')">تعديل</button>${x.status==='pending'?`<button class="btn btn-success btn-sm" onclick="expenseStatus('${x.id}','approved')">اعتماد</button><button class="btn btn-danger btn-sm" onclick="expenseStatus('${x.id}','rejected')">رفض</button>`:''}<button class="btn btn-danger btn-sm" onclick="deleteExpense('${x.id}')">حذف</button></div></td></tr>`).join('')||`<tr><td colspan="13">${noReportData('لا توجد مصروفات مسجلة')}</td></tr>`}</tbody></table></div></div>`;
+  const list=[...state.expenses].sort((a,b)=>expenseBranchName(a).localeCompare(expenseBranchName(b),'ar')||String(b.date||'').localeCompare(String(a.date||'')));
+  const linked=list.filter(x=>x.custodyId),approved=list.filter(x=>x.status==='approved'),pending=list.filter(x=>x.status==='pending');
+  return `<div class="page-head"><div><h2>مصروفات الشركة</h2><p>تم تقسيم سجل المصروفات حسب كل فرع مستقلًا، مع إجمالي ومعتمد ومعلق لكل فرع.</p></div><button class="btn btn-primary" onclick="expenseModal()">＋ إضافة مصروف شركة</button></div>
+  <div class="grid grid-4">${metric('▣',expenseMoneySummary(list),'إجمالي المصروفات','كل الفروع وكل الحالات')}${metric('✓',expenseMoneySummary(approved),'إجمالي المعتمد','يدخل في التقارير')}${metric('⌛',expenseMoneySummary(pending),'قيد المراجعة','تحتاج اعتماد')}${metric('⌂',expenseBranchGroups(list).length,'فروع بها مصروفات',`${linked.length} مصروف مرتبط بعهد`)}</div>
+  <div class="card" style="margin-top:18px"><div class="card-title"><div><h3>ملخص المصروفات حسب الفرع</h3><div class="small muted" style="margin-top:5px">يعرض الإجمالي والمعتمد والمعلق والمرفوض لكل فرع قبل تفاصيل السجل.</div></div><div class="actions"><button class="btn btn-secondary btn-sm" onclick="exportExpensesCSV()">⇩ تصدير CSV</button></div></div>${expenseBranchSummaryTable(list,{includeEmpty:true})}</div>
+  <div class="expense-branch-list" style="margin-top:18px">${expenseGroupedBranchCards(list)}</div>`;
 }
 function expenseAttachmentCell(x){
   if(x.attachmentData){
@@ -1358,6 +1368,7 @@ function renderComprehensiveReport(ctx){
   const content=`<div class="grid grid-4">${metric('💳',sumByCurrency(ctx.payroll,p=>p.net,p=>p.employeeId),'صافي الرواتب',ctx.month)}${metric('▣',sumExpensesByCurrency(approvedExpenses),'المصروفات المعتمدة',ctx.month)}${metric('＋',sumByCurrency(approvedRewards),'المكافآت المعتمدة',ctx.month)}${metric('−',sumByCurrency(approvedDeductions),'الخصومات المعتمدة',ctx.month)}</div>
   <div class="grid grid-4" style="margin-top:18px">${metric('✓',ctx.attendance.filter(a=>['present','late'].includes(a.status)).length,'سجلات الحضور',`${late} دقيقة تأخير`)}${metric('☂',ctx.leaves.filter(l=>l.status==='approved').reduce((s,l)=>s+daysOfLeaveInMonth(l,ctx.month),0),'أيام الإجازات','المعتمدة')}${metric('▦',activeCustodies.length,'العُهد النشطة',financialCustodies.length?`رصيد مالي: ${financialCustodySummary(financialCustodies,'remaining')}`:custodyMoneySummary(activeCustodies))}${metric('⌖',ctx.missions.length,'المأموريات',ctx.month)}</div>
   ${reportSection('الرواتب',ctx.payroll.length?payrollReportTable(ctx.payroll):noReportData('لا توجد رواتب محسوبة لهذا الشهر'))}
+  ${reportSection('ملخص مصروفات الشركة حسب الفرع',ctx.expenses.length?expenseBranchSummaryTable(ctx.expenses,{includeEmpty:false,compact:true}):noReportData('لا توجد مصروفات شركة'),'ملخص سريع داخل التقرير الشامل قبل تفاصيل المصروفات.') }
   <div class="report-two-col">${reportSection('مصروفات الشركة',ctx.expenses.length?expenseReportTable(ctx.expenses,true):noReportData('لا توجد مصروفات شركة'))}${reportSection('الخصومات والمكافآت',ctx.adjustments.length?adjustmentReportTable(ctx.adjustments,true):noReportData('لا توجد حركات مالية'))}</div>
   <div class="report-two-col">${reportSection('الإجازات',ctx.leaves.length?leaveReportTable(ctx.leaves,ctx.month,true):noReportData('لا توجد إجازات'))}${reportSection('العُهد',ctx.custodies.length?custodyReportTable(ctx.custodies,true):noReportData('لا توجد عهد'))}</div>
   ${reportSection('الحضور والانصراف',ctx.attendance.length?attendanceSummaryTable(ctx):noReportData('لا توجد سجلات حضور'))}
@@ -1389,10 +1400,14 @@ function renderMissionsReport(ctx){
   return reportDocument('تقرير المأموريات',ctx,content,'المواقع والمواعيد وحالة كل مأمورية خارجية.');
 }
 function expenseReportTable(list,compact=false){return `<div class="table-wrap"><table class="table ${compact?'compact-table':'report-detail-table'}"><thead><tr><th>التاريخ</th><th>اسم المصروف</th><th>الفرع</th><th>العملة</th><th>الفئة</th><th>العهدة المالية</th><th>المورد / الجهة</th><th>طريقة الدفع</th><th>رقم الفاتورة</th><th>الوصف</th><th>المبلغ</th><th>الحالة</th><th>المرفق</th></tr></thead><tbody>${list.map(x=>`<tr><td>${fmtDate(x.date)}</td><td><strong>${escapeHTML(x.title||'مصروف شركة')}</strong></td><td>${escapeHTML(expenseBranch(x)||'-')}</td><td>${expenseCurrency(x)}</td><td>${escapeHTML(x.category||'-')}</td><td>${escapeHTML(expenseCustodyLabel(x))}</td><td>${escapeHTML(x.supplier||'-')}</td><td>${escapeHTML(x.paymentMethod||'-')}</td><td>${escapeHTML(x.invoiceNo||'-')}</td><td>${escapeHTML(x.description||'-')}</td><td>${moneyForExpense(x)}</td><td>${statusBadge(x.status)}</td><td>${escapeHTML(x.attachmentName||'-')}</td></tr>`).join('')}</tbody></table></div>`}
+function expenseBranchReportSections(list){const groups=expenseBranchGroups(list);if(!groups.length)return noReportData('لا توجد مصروفات داخل الفترة');return groups.map(g=>{const approved=g.records.filter(x=>x.status==='approved'),pending=g.records.filter(x=>x.status==='pending'),rejected=g.records.filter(x=>x.status==='rejected');return `<div class="card report-section expense-report-branch"><div class="card-title"><div><h3>فرع ${escapeHTML(g.branch)}</h3><div class="small muted" style="margin-top:5px">إجمالي الفرع: ${sumExpensesByCurrency(g.records)} · المعتمد: ${sumExpensesByCurrency(approved)} · المعلق: ${sumExpensesByCurrency(pending)} · المرفوض: ${rejected.length} سجل</div></div></div>${expenseReportTable(g.records,true)}</div>`}).join('')}
 function renderExpensesReport(ctx){
   const approved=ctx.expenses.filter(x=>x.status==='approved'),pending=ctx.expenses.filter(x=>x.status==='pending'),rejected=ctx.expenses.filter(x=>x.status==='rejected');
-  const content=`<div class="grid grid-4">${metric('▣',sumExpensesByCurrency(ctx.expenses),'إجمالي مصروفات الشركة','كل الحالات')}${metric('✓',sumExpensesByCurrency(approved),'المعتمد','داخل الشهر')}${metric('⌛',sumExpensesByCurrency(pending),'قيد المراجعة',`${pending.length} مصروف`)}${metric('×',rejected.length,'مرفوضة','عدد السجلات')}</div>${reportSection('تفاصيل مصروفات الشركة',ctx.expenses.length?expenseReportTable(ctx.expenses):noReportData('لا توجد مصروفات داخل الفترة'),'مصروفات الشركة تُفلتر حسب الشهر والفرع، وقد ترتبط بعهدة مالية دون تكرار احتسابها.')}`;
-  return reportDocument('تقرير مصروفات الشركة',ctx,content,'كل المصروفات التشغيلية والفروع والعملات والموردين والمرفقات وحالة الاعتماد.');
+  const content=`<div class="grid grid-4">${metric('▣',sumExpensesByCurrency(ctx.expenses),'إجمالي مصروفات الشركة','كل الحالات')}${metric('✓',sumExpensesByCurrency(approved),'إجمالي المعتمد','داخل الشهر')}${metric('⌛',sumExpensesByCurrency(pending),'قيد المراجعة',`${pending.length} مصروف`)}${metric('⌂',expenseBranchGroups(ctx.expenses).length,'فروع بها مصروفات',`${rejected.length} مرفوض`)}</div>
+  ${reportSection('ملخص المصروفات حسب الفرع',ctx.expenses.length?expenseBranchSummaryTable(ctx.expenses,{includeEmpty:true,compact:true}):noReportData('لا توجد مصروفات داخل الفترة'),'يعرض إجمالي كل فرع، المعتمد، قيد المراجعة، والمرفوض.')}
+  <div class="report-two-col">${reportSection('ملخص حسب الفئة',ctx.expenses.length?expenseCategorySummaryTable(ctx.expenses):noReportData('لا توجد فئات مصروفات'))}${reportSection('إجمالي عام',`<div class="status-panel"><div class="status-row"><span>إجمالي كل المصروفات</span><strong>${sumExpensesByCurrency(ctx.expenses)}</strong></div><div class="status-row"><span>إجمالي المعتمد</span><strong>${sumExpensesByCurrency(approved)}</strong></div><div class="status-row"><span>إجمالي قيد المراجعة</span><strong>${sumExpensesByCurrency(pending)}</strong></div><div class="status-row"><span>عدد المرفوض</span><strong>${rejected.length}</strong></div></div>`)}</div>
+  ${reportSection('تفاصيل مصروفات الشركة مقسمة حسب الفرع',expenseBranchReportSections(ctx.expenses),'كل فرع يظهر كسجل مستقل لتسهيل المراجعة والمطابقة.')}`;
+  return reportDocument('تقرير مصروفات الشركة',ctx,content,'إجمالي المصروفات + ملخص كل فرع + تفاصيل السجلات حسب الفروع والعملات والموردين والمرفقات.');
 }
 function adjustmentReportTable(list,compact=false){return `<div class="table-wrap"><table class="table ${compact?'compact-table':'report-detail-table'}"><thead><tr><th>التاريخ</th><th>الموظف</th><th>القسم</th><th>الفرع</th><th>الحركة</th><th>نوع الخصم / المكافأة</th><th>طريقة الحساب</th><th>السبب</th><th>المبلغ</th><th>الحالة</th></tr></thead><tbody>${list.map(x=>{const e=emp(x.employeeId);return `<tr><td>${fmtDate(x.date)}</td><td>${escapeHTML(e?.name||'-')}</td><td>${escapeHTML(e?.department||'-')}</td><td>${escapeHTML(e?.branch||'-')}</td><td><span class="badge badge-${x.kind==='reward'?'success':'danger'}">${adjustmentKindLabel(x.kind)}</span></td><td>${escapeHTML(adjustmentTypeLabel(x))}</td><td>${escapeHTML(adjustmentMethodLabel(x))}</td><td>${escapeHTML(x.reason||'-')}</td><td><strong class="${x.kind==='reward'?'positive-text':'negative-text'}">${x.kind==='reward'?'+':'−'} ${moneyForEmployee(x.amount,x.employeeId)}</strong></td><td>${statusBadge(x.status)}</td></tr>`}).join('')}</tbody></table></div>`}
 function renderAdjustmentsReport(ctx){
@@ -3214,4 +3229,120 @@ orbitPushServerState=async function(){
   const prefs={theme:state.settings?.theme,language:state.settings?.language};
   await _orbitPushServerStatePrefs();
   state.settings=state.settings||{};if(prefs.theme)state.settings.theme=prefs.theme;if(prefs.language)state.settings.language=prefs.language;cacheClientState();
+};
+
+/* =========================================================
+   Orbit HR v4.4 production-candidate client bindings
+   - all non-critical module saves can sync through /api/sync
+   - added generic collection helpers for direct API persistence
+   ========================================================= */
+APP_VERSION='4.8.0-expenses-by-branch';
+
+var orbitSyncTimer=null;
+async function orbitSyncChanges(silent=true){
+  if(!orbitToken())return false;
+  try{
+    orbitSetServerStatus('saving','جاري مزامنة التغييرات');
+    const r=await orbitApi('/api/sync',{method:'PUT',body:JSON.stringify({state:sanitizeClientState(state),baseUpdatedAt:orbitLastServerSave,clientVersion:APP_VERSION})});
+    if(r?.state){state=normalizeState(sanitizeClientState(r.state));cacheClientState()}
+    orbitLastServerSave=r.updatedAt||orbitLastServerSave;orbitSetServerStatus('online','تمت المزامنة');
+    if(!silent)toast('تمت مزامنة التغييرات مع السيرفر');
+    return true;
+  }catch(err){
+    if(err?.payload?.error==='sync_conflict'&&err.payload.state){state=normalizeState(sanitizeClientState(err.payload.state));cacheClientState();orbitLastServerSave=err.payload.updatedAt||orbitLastServerSave;render();toast('تم تحديث البيانات من السيرفر بسبب وجود تعديل أحدث','error')}
+    else toast(err?.payload?.message||'تعذر مزامنة التغييرات مع السيرفر','error');
+    orbitSetServerStatus('offline','فشلت المزامنة');return false;
+  }
+}
+function orbitScheduleSafeSync(){if(!orbitToken())return;clearTimeout(orbitSyncTimer);orbitSyncTimer=setTimeout(()=>orbitSyncChanges(true),700)}
+
+saveState=function(){
+  state=normalizeState(sanitizeClientState(state));
+  cacheClientState();
+  if(orbitToken())orbitScheduleSafeSync();
+};
+
+async function orbitCollectionSave(key,item,id=''){
+  const path=`/api/collections/${encodeURIComponent(key)}${id?`/${encodeURIComponent(id)}`:''}`;
+  const r=await orbitApi(path,{method:id?'PUT':'POST',body:JSON.stringify(item)});
+  if(r.item)orbitMergeItem(key,r.item);orbitLastServerSave=r.updatedAt||orbitLastServerSave;return r;
+}
+async function orbitCollectionDelete(key,id){
+  const r=await orbitApi(`/api/collections/${encodeURIComponent(key)}/${encodeURIComponent(id)}`,{method:'DELETE'});
+  state[key]=(state[key]||[]).filter(x=>x.id!==id);cacheClientState();orbitLastServerSave=r.updatedAt||orbitLastServerSave;return r;
+}
+async function orbitCollectionStatus(key,id,status,note=''){
+  const r=await orbitApi(`/api/collections/${encodeURIComponent(key)}/${encodeURIComponent(id)}/status`,{method:'PUT',body:JSON.stringify({status,note})});
+  if(r.item)orbitMergeItem(key,r.item);orbitLastServerSave=r.updatedAt||orbitLastServerSave;return r;
+}
+
+const _orbitHealthModalV44=orbitHealthModal;
+orbitHealthModal=async function(){
+  try{
+    const r=await orbitApi('/api/health',{method:'GET'});
+    const cards=Object.entries(r.counts||{}).map(([k,v])=>infoCard(k,v)).join('');
+    const apis=(r.apis?.collections||[]).slice(0,30).map(x=>`<span class="badge">${escapeHTML(x)}</span>`).join(' ');
+    openModal('حالة السيرفر وقاعدة البيانات',`<div class="grid grid-2">${infoCard('الإصدار',r.version)}${infoCard('Schema',r.schemaVersion||'-')}${infoCard('آخر تحديث',r.updatedAt)}${infoCard('وقت السيرفر',r.serverTime)}</div><div class="grid grid-3" style="margin-top:14px">${cards}</div><div class="notice" style="margin-top:14px">APIs مفعلة: ${apis}</div>`);
+  }catch(err){return _orbitHealthModalV44()}
+};
+
+// Generic save bindings for modules that previously depended on full-state save.
+const _saveShiftV44=saveShift;
+saveShift=async function(id){_saveShiftV44(id);await orbitSyncChanges(true)};
+const _deleteShiftV44=deleteShift;
+deleteShift=async function(id){_deleteShiftV44(id);await orbitSyncChanges(true)};
+
+const _saveExpenseV44=saveExpense;
+saveExpense=async function(id=''){_saveExpenseV44(id);await orbitSyncChanges(true)};
+expenseStatus=async function(id,status){try{await orbitCollectionStatus('expenses',id,status);render();toast(status==='approved'?'تم اعتماد المصروف على السيرفر':'تم رفض المصروف على السيرفر')}catch(err){toast(err?.payload?.message||'تعذر تحديث المصروف','error')}};
+deleteExpense=async function(id){if(!confirm('حذف مصروف الشركة والمرفق المرتبط به؟'))return;try{await orbitCollectionDelete('expenses',id);render();toast('تم حذف المصروف من السيرفر')}catch(err){toast(err?.payload?.message||'تعذر حذف المصروف','error')}};
+
+const _saveAdjustmentV44=saveAdjustment;
+saveAdjustment=async function(id){_saveAdjustmentV44(id);await orbitSyncChanges(true)};
+adjustmentStatus=async function(id,status){try{await orbitCollectionStatus('adjustments',id,status);render();toast(status==='approved'?'تم اعتماد الحركة على السيرفر':'تم رفض الحركة على السيرفر')}catch(err){toast(err?.payload?.message||'تعذر تحديث الحركة','error')}};
+deleteAdjustment=async function(id){if(!confirm('حذف الحركة المالية؟'))return;try{await orbitCollectionDelete('adjustments',id);render();toast('تم حذف الحركة من السيرفر')}catch(err){toast(err?.payload?.message||'تعذر حذف الحركة','error')}};
+
+const _saveDocumentV44=saveDocument;
+saveDocument=async function(id=''){_saveDocumentV44(id);await orbitSyncChanges(true)};
+deleteDocument=async function(id){const x=state.documents.find(v=>v.id===id);if(!x||!confirm('حذف المستند والملف المرفق؟'))return;try{await orbitCollectionDelete('documents',id);render();toast('تم حذف المستند من السيرفر')}catch(err){toast(err?.payload?.message||'تعذر حذف المستند','error')}};
+
+const _saveUniversalStatusV44=saveUniversalStatus;
+saveUniversalStatus=async function(){
+  const cfg=sectionStatusConfig(),form=$('#universalStatusForm');
+  if(cfg&&form&&cfg.stateKey&&cfg.stateKey!=='employees'&&cfg.stateKey!=='payroll'&&cfg.stateKey!=='attendance'){
+    try{await orbitCollectionStatus(cfg.stateKey,form.elements.recordId.value,form.elements.status.value);closeModal();render();toast('تم تحديث الحالة على السيرفر');return}catch(err){toast(err?.payload?.message||'تعذر تحديث الحالة','error');return}
+  }
+  _saveUniversalStatusV44();await orbitSyncChanges(true);
+};
+
+const _professionalHealthChecksV44Base=professionalHealthChecks;
+professionalHealthChecks=function(){
+  const issues=_professionalHealthChecksV44Base();
+  if(orbitToken()&&orbitServerStatus==='offline')addReadinessIssue(issues,'warning','المزامنة','السيرفر غير متصل حاليًا','التغييرات محفوظة محليًا فقط إلى أن تعود المزامنة.','تحقق من تشغيل server.py والاتصال الداخلي');
+  return issues;
+};
+APP_VERSION='4.8.0-expenses-by-branch';
+
+
+/* Orbit HR v4.8 domain-neutral production client hardening */
+APP_VERSION='4.8.0-expenses-by-branch';
+function orbitClearLocalSensitiveData(){
+  try{sessionStorage.removeItem(VIEW_KEY);sessionStorage.removeItem(ORBIT_TOKEN_KEY);sessionStorage.removeItem(SESSION_KEY)}catch{}
+  try{localStorage.removeItem(APP_KEY);localStorage.removeItem(SESSION_KEY);localStorage.removeItem(VIEW_KEY)}catch{}
+  try{if('caches' in window)caches.keys().then(keys=>keys.filter(k=>k.startsWith('orbit-hr-')).forEach(k=>caches.delete(k)))}catch{}
+}
+logout=function(){
+  try{orbitApi('/api/logout',{method:'POST'}).catch(()=>{})}catch{}
+  try{logAudit('تسجيل خروج','الأمان',currentUser?.email||'')}catch{}
+  currentUser=null;currentView='dashboard';orbitLastServerSave='';orbitBootPulled=false;faceVerifiedSession=false;faceSnapshotSession='';
+  orbitClearLocalSensitiveData();
+  render();
+};
+orbitHealthModal=async function(){
+  try{
+    const r=await orbitApi('/api/health',{method:'GET'});
+    const cards=Object.entries(r.counts||{}).map(([k,v])=>infoCard(k,v)).join('');
+    const apis=(r.apis?.collections||[]).slice(0,30).map(x=>`<span class="badge">${escapeHTML(x)}</span>`).join(' ');
+    openModal('حالة السيرفر وقاعدة البيانات',`<div class="grid grid-2">${infoCard('الإصدار',r.version)}${infoCard('Schema',r.schemaVersion||'-')}${infoCard('آخر تحديث',r.updatedAt||'-')}${infoCard('وقت السيرفر',r.serverTime)}</div>${cards?`<div class="grid grid-3" style="margin-top:14px">${cards}</div>`:''}${apis?`<div class="notice" style="margin-top:14px">APIs مفعلة: ${apis}</div>`:''}`);
+  }catch(err){toast('السيرفر غير متاح حاليًا','error')}
 };

@@ -42,20 +42,21 @@ DB_PATH = DATA_DIR / "orbit_hr.sqlite3"
 SECRET_PATH = DATA_DIR / "server_secret.key"
 INITIAL_STATE_PATH = ROOT / "initial_state.json"
 APP_STATE_ID = 1
-APP_VERSION = "4.3.0-ready"
+APP_VERSION = "4.8.0-expenses-by-branch"
 TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7
 PBKDF2_ITERATIONS = 260_000
 PORT = int(os.environ.get("PORT", os.environ.get("ORBIT_HR_PORT", "8080")))
 HOST = os.environ.get("ORBIT_HR_HOST", "0.0.0.0")
-ALLOWED_ORIGINS = os.environ.get("ORBIT_HR_ALLOWED_ORIGINS", "")
+PUBLIC_ORIGIN = os.environ.get("ORBIT_HR_PUBLIC_ORIGIN", "").rstrip("/")
+ALLOWED_ORIGINS = os.environ.get("ORBIT_HR_ALLOWED_ORIGINS", PUBLIC_ORIGIN)
 SERVER_TZ = ZoneInfo(os.environ.get("ORBIT_HR_TIMEZONE", "Africa/Cairo"))
 PUBLIC_FILES = {"index.html","app.js","styles.css","manifest.json","sw.js","privacy.html","terms.html","logo.svg"} | {f"icon-{n}.png" for n in (48,72,96,128,144,152,167,180,192,256,384,512)} | {"orbit-logo.png","orbit-logo-ui.png","orbit-mark.png","orbit-mark-ui.png"}
 APP_TIMEZONE = os.environ.get("ORBIT_HR_TIMEZONE", "Africa/Cairo")
 MAX_UPLOAD_BYTES = int(os.environ.get("ORBIT_HR_MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
 DEFAULT_BOOTSTRAP_PASSWORDS = {
-    "admin@hr.local": os.environ.get("ORBIT_HR_BOOTSTRAP_ADMIN_PASSWORD", "admin123"),
-    "manager@hr.local": os.environ.get("ORBIT_HR_BOOTSTRAP_MANAGER_PASSWORD", "manager123"),
-    "employee@hr.local": os.environ.get("ORBIT_HR_BOOTSTRAP_EMPLOYEE_PASSWORD", "employee123"),
+    "admin@hr.local": os.environ.get("ORBIT_HR_BOOTSTRAP_ADMIN_PASSWORD", ""),
+    "manager@hr.local": os.environ.get("ORBIT_HR_BOOTSTRAP_MANAGER_PASSWORD", ""),
+    "employee@hr.local": os.environ.get("ORBIT_HR_BOOTSTRAP_EMPLOYEE_PASSWORD", ""),
 }
 _db_lock = threading.RLock()
 
@@ -1274,7 +1275,7 @@ class OrbitHandler(SimpleHTTPRequestHandler):
             state, updated_at = load_state_from_db(con)
             counts = {k: len(as_list(state.get(k))) for k in ["employees", "users", "attendance", "payroll", "leaves", "missions", "documents"]}
             counts.update({"structuredEmployees": con.execute("SELECT COUNT(*) c FROM hr_employees").fetchone()["c"], "structuredAttendance": con.execute("SELECT COUNT(*) c FROM hr_attendance").fetchone()["c"], "structuredPayroll": con.execute("SELECT COUNT(*) c FROM hr_payroll").fetchone()["c"]})
-        self.send_json({"ok": True, "version": APP_VERSION, "database": str(DB_PATH.name), "updatedAt": updated_at, "counts": counts, "serverTime": utc_now()})
+        self.send_json({"ok": True, "version": APP_VERSION, "database": str(DB_PATH.name), "updatedAt": updated_at, "counts": counts, "serverTime": local_now_iso()})
 
     def api_login(self) -> None:
         body = self.read_json()
@@ -1831,7 +1832,7 @@ from zoneinfo import ZoneInfo
 import tempfile as _tempfile
 import zipfile as _zipfile
 
-APP_VERSION = "4.3.0-ready"
+APP_VERSION = "4.8.0-expenses-by-branch"
 INITIAL_CREDENTIALS_PATH = DATA_DIR / "INITIAL_ADMIN_CREDENTIALS.txt"
 PASSWORD_MIN_LENGTH = 10
 LOGIN_WINDOW_SECONDS = 15 * 60
@@ -2987,7 +2988,7 @@ OrbitHandler.handle_api = _handle_api_v42_latest
 # - tightened manual attendance scope and added server-side checkout validation
 # - added deployment packaging guidance marker in /api/health
 # ==========================================================================
-APP_VERSION = "4.3.0-ready"
+APP_VERSION = "4.8.0-expenses-by-branch"
 
 # Backward compatible local time helpers. Some v4.1 paths call local_now() with
 # no state, while v4.2 attendance normalization calls local_now(state).
@@ -3103,9 +3104,718 @@ def _api_health_v43(self: "OrbitHandler") -> None:
             "structuredAttendance": con.execute("SELECT COUNT(*) c FROM hr_attendance").fetchone()["c"],
             "structuredPayroll": con.execute("SELECT COUNT(*) c FROM hr_payroll").fetchone()["c"],
         })
-    self.send_json({"ok": True, "version": APP_VERSION, "database": str(DB_PATH.name), "updatedAt": updated_at, "counts": counts, "timezone": str(company_timezone(state)), "serverTime": utc_now(), "productionReadyPatch": True})
+    self.send_json({"ok": True, "version": APP_VERSION, "database": str(DB_PATH.name), "updatedAt": updated_at, "counts": counts, "timezone": str(company_timezone(state)), "serverTime": local_now_iso(), "productionReadyPatch": True})
 
 OrbitHandler.api_health = _api_health_v43
+
+
+
+# ==========================================================================
+# Orbit HR v4.4.0 production-candidate workflow APIs
+# - generic record APIs for the remaining HR modules instead of full-state saves
+# - conflict-safe front-end sync support
+# - leave-balance and management-summary APIs
+# - broader role permissions for the built-in module set
+# ==========================================================================
+APP_VERSION = "4.8.0-expenses-by-branch"
+
+# Extend built-in roles to match all modules available in the UI. Admin remains full access via is_admin().
+ROLE_PERMISSIONS.setdefault("manager", set()).update({
+    "users:read", "reports:read", "settings:write", "notifications:write",
+    "decisions:read", "decisions:write", "meetings:read", "meetings:write",
+    "announcements:read", "announcements:write", "tasks:read", "tasks:write",
+    "permissions:read", "permissions:write", "shiftRequests:read", "shiftRequests:write",
+    "biometricDevices:read", "biometricDevices:write", "workInterruptions:read", "workInterruptions:write",
+    "evaluations:read", "evaluations:write", "recruitment:read", "recruitment:write",
+    "terminations:read", "terminations:write", "advances:read", "advances:write",
+    "dues:read", "dues:write", "complaints:read", "complaints:write", "letters:read", "letters:write",
+})
+ROLE_PERMISSIONS.setdefault("hr", set()).update({
+    "settings:read", "reports:read", "holidays:read", "holidays:write", "permissions:read", "permissions:write",
+    "shiftRequests:read", "shiftRequests:write", "biometricDevices:read", "biometricDevices:write",
+    "workInterruptions:read", "workInterruptions:write", "evaluations:read", "evaluations:write",
+    "recruitment:read", "recruitment:write", "terminations:read", "terminations:write",
+    "tasks:read", "tasks:write", "complaints:read", "complaints:write", "letters:read", "letters:write",
+    "announcements:read", "announcements:write", "advances:read", "dues:read", "adjustments:read", "adjustments:write",
+})
+ROLE_PERMISSIONS.setdefault("finance", set()).update({"reports:read", "documents:read", "expenses:read", "expenses:write"})
+
+COLLECTION_API_RULES: Dict[str, Dict[str, Any]] = dict(SYNC_COLLECTIONS)
+COLLECTION_API_RULES.update({
+    "attendance": {"perm": "attendance:write", "read_perm": "attendance:read", "owner": "employeeId"},
+    "leaves": {"perm": "leaves:write", "read_perm": "leaves:read", "approve_perm": "leaves:approve", "delete_perm": "leaves:delete", "owner": "employeeId", "employee_create": True},
+    "missions": {"perm": "missions:write", "read_perm": "missions:read", "approve_perm": "missions:approve", "delete_perm": "missions:delete", "owner": "employeeId", "employee_create": True},
+})
+
+STATUS_PERMISSIONS = {
+    "expenses": "expenses:write", "adjustments": "adjustments:write", "custodies": "custodies:write",
+    "documents": "documents:write", "advances": "advances:write", "dues": "dues:write",
+    "tasks": "tasks:write", "complaints": "complaints:write", "letters": "letters:write",
+    "shiftRequests": "shiftRequests:write", "workInterruptions": "workInterruptions:write",
+    "evaluations": "evaluations:write", "recruitment": "recruitment:write",
+    "terminations": "terminations:write", "announcements": "announcements:write",
+    "decisions": "decisions:write", "meetings": "meetings:write", "biometricDevices": "biometricDevices:write",
+    "leaves": "leaves:approve", "missions": "missions:approve",
+}
+
+ALLOWED_COLLECTION_KEYS = set(COLLECTION_API_RULES)
+SAFE_STATUSES = {"pending", "reviewed", "approved", "rejected", "cancelled", "active", "inactive", "assigned", "returned", "lost", "damaged", "paid", "completed", "issued", "sent", "published", "draft", "open", "closed", "resolved", "in_progress", "scheduled", "connected", "disconnected", "settled", "hired", "interview", "offer", "onboarding"}
+
+
+def _collection_visible_items(state: Dict[str, Any], actor: sqlite3.Row, key: str) -> List[Dict[str, Any]]:
+    visible = visible_state_for_actor(state, actor)
+    return [x for x in as_list(visible.get(key)) if isinstance(x, dict)]
+
+
+def _record_owner_allowed(actor: sqlite3.Row, rule: Dict[str, Any], record: Optional[Dict[str, Any]]) -> bool:
+    if not record or is_admin(actor) or lower(actor["role"]) in ("manager", "hr", "finance"):
+        return True
+    owner_key = rule.get("owner")
+    return bool(owner_key and clean_str(record.get(owner_key)) == clean_str(actor["employee_id"]))
+
+
+def _collection_can_write(actor: sqlite3.Row, rule: Dict[str, Any], old: Optional[Dict[str, Any]], new: Optional[Dict[str, Any]], action: str) -> bool:
+    if has_permission(actor, rule.get("perm", "")) and (lower(actor["role"]) != "employee" or _record_owner_allowed(actor, rule, new or old)):
+        if lower(actor["role"]) != "employee":
+            return True
+    return _employee_can_change_record(actor, rule, old, new, action)
+
+
+def _prepare_collection_record(actor: sqlite3.Row, key: str, rule: Dict[str, Any], record: Dict[str, Any], old: Optional[Dict[str, Any]], action: str) -> Dict[str, Any]:
+    item = sanitize_state({"x": [record]}).get("x", [{}])[0]
+    item = dict(item if isinstance(item, dict) else {})
+    if action == "create":
+        item.setdefault("id", make_id(key[:4] or "rec"))
+        item.setdefault("createdAt", utc_now())
+        item.setdefault("createdBy", actor["id"])
+    else:
+        item["id"] = clean_str((old or {}).get("id") or item.get("id"))
+    if lower(actor["role"]) == "employee" and rule.get("owner"):
+        item[rule["owner"]] = actor["employee_id"]
+        if key not in ("documents", "letters", "complaints"):
+            item["status"] = "pending" if clean_str(item.get("status")) not in ("rejected", "cancelled") else item.get("status")
+    item["updatedAt"] = utc_now()
+    return item
+
+
+def _validate_collection_record(state: Dict[str, Any], key: str, item: Dict[str, Any], current_id: str = "") -> Optional[Tuple[int, Dict[str, Any]]]:
+    if key == "attendance":
+        errors = validate_attendance_save(state, item, current_id)
+        if errors:
+            return 422, {"ok": False, "error": "validation_failed", "details": errors}
+        normalize_attendance_record(state, item)
+    if key in ("leaves", "missions", "permissions", "shiftRequests"):
+        emp_id = clean_str(item.get("employeeId"))
+        if not emp_id:
+            return 422, {"ok": False, "error": "employee_required", "message": "اختيار الموظف مطلوب"}
+        if key in ("leaves", "missions"):
+            conflict = _request_overlap(state, key, item, current_id)
+            if conflict and clean_str(item.get("status")) in ("pending", "reviewed", "approved", ""):
+                return 409, {"ok": False, "error": "overlapping_request", "message": "يوجد طلب متداخل لنفس الموظف", "conflictId": conflict.get("id")}
+    if key == "expenses" and to_float(item.get("amount")) < 0:
+        return 422, {"ok": False, "error": "invalid_amount", "message": "المبلغ لا يمكن أن يكون بالسالب"}
+    if key in ("adjustments", "advances", "dues", "custodies") and to_float(item.get("amount") or item.get("value")) < 0:
+        return 422, {"ok": False, "error": "invalid_amount", "message": "القيمة لا يمكن أن تكون بالسالب"}
+    return None
+
+
+def _api_collections_v44(self: "OrbitHandler", method: str, key: str, tail: List[str], qs: Dict[str, List[str]]) -> None:
+    if key not in ALLOWED_COLLECTION_KEYS:
+        return self.send_json({"ok": False, "error": "unknown_collection"}, 404)
+    rule = COLLECTION_API_RULES[key]
+    read_perm = rule.get("read_perm") or (str(rule.get("perm", "")).split(":", 1)[0] + ":read")
+    if method == "GET" and not tail:
+        actor = self.require_auth(read_perm)
+        if not actor:
+            return
+        with _db_lock, db() as con:
+            state, updated = load_state_from_db(con)
+        items = _collection_visible_items(state, actor, key)
+        employee_id = clean_str((qs.get("employeeId") or [""])[0])
+        status = clean_str((qs.get("status") or [""])[0])
+        month = clean_str((qs.get("month") or [""])[0])
+        if employee_id:
+            if not user_can_access_employee(actor, employee_id):
+                return self.send_json({"ok": False, "error": "forbidden_employee_scope"}, 403)
+            items = [x for x in items if clean_str(x.get("employeeId")) == employee_id]
+        if status:
+            items = [x for x in items if clean_str(x.get("status")) == status]
+        if month:
+            items = [x for x in items if clean_str(x.get("date") or x.get("from") or x.get("createdAt")).startswith(month)]
+        return self.send_json({"ok": True, "items": items, "updatedAt": updated})
+    if method == "POST" and not tail:
+        actor = self.require_auth(rule.get("perm", ""))
+        if not actor:
+            return
+        body = self.read_json()
+        with _db_lock, db() as con:
+            state, _ = load_state_from_db(con)
+            item = _prepare_collection_record(actor, key, rule, body, None, "create")
+            if not _collection_can_write(actor, rule, None, item, "create"):
+                return self.send_json({"ok": False, "error": "forbidden_record"}, 403)
+            invalid = _validate_collection_record(state, key, item)
+            if invalid:
+                return self.send_json(invalid[1], invalid[0])
+            state.setdefault(key, []).append(item)
+            updated = save_state_to_db(con, state, actor["id"])
+            audit(con, actor, "إضافة سجل", key, clean_str(item.get("id")), _client_ip(self))
+        return self.send_json({"ok": True, "item": item, "updatedAt": updated}, 201)
+    if tail:
+        rec_id = tail[0]
+        if len(tail) == 2 and tail[1] == "status" and method in ("POST", "PUT"):
+            status_perm = STATUS_PERMISSIONS.get(key) or rule.get("perm", "")
+            actor = self.require_auth(status_perm)
+            if not actor:
+                return
+            body = self.read_json(); status = clean_str(body.get("status"))
+            if not status or status not in SAFE_STATUSES:
+                return self.send_json({"ok": False, "error": "invalid_status"}, 422)
+            with _db_lock, db() as con:
+                state, _ = load_state_from_db(con)
+                items = as_list(state.get(key))
+                item = next((x for x in items if isinstance(x, dict) and clean_str(x.get("id")) == rec_id), None)
+                if not item:
+                    return self.send_json({"ok": False, "error": "not_found"}, 404)
+                if clean_str(item.get(rule.get("owner", ""))) == clean_str(actor["employee_id"]) and lower(actor["role"]) == "employee":
+                    return self.send_json({"ok": False, "error": "self_approval_forbidden", "message": "لا يمكن اعتماد السجل الشخصي من نفس المستخدم"}, 422)
+                old = clean_str(item.get("status"))
+                item["status"] = status
+                item["statusNote"] = clean_str(body.get("note"))
+                item["statusUpdatedAt"] = utc_now(); item["statusUpdatedBy"] = actor["id"]; item["updatedAt"] = utc_now()
+                updated = save_state_to_db(con, state, actor["id"])
+                audit(con, actor, "تغيير حالة سجل", key, f"{rec_id}: {old} → {status}", _client_ip(self))
+            return self.send_json({"ok": True, "item": item, "updatedAt": updated})
+        if method == "PUT":
+            actor = self.require_auth(rule.get("perm", ""))
+            if not actor:
+                return
+            body = self.read_json()
+            with _db_lock, db() as con:
+                state, _ = load_state_from_db(con)
+                items = as_list(state.get(key))
+                old = next((x for x in items if isinstance(x, dict) and clean_str(x.get("id")) == rec_id), None)
+                if not old:
+                    return self.send_json({"ok": False, "error": "not_found"}, 404)
+                merged = dict(old); merged.update(body); merged["id"] = rec_id
+                item = _prepare_collection_record(actor, key, rule, merged, old, "update")
+                if not _collection_can_write(actor, rule, old, item, "update"):
+                    return self.send_json({"ok": False, "error": "forbidden_record"}, 403)
+                invalid = _validate_collection_record(state, key, item, rec_id)
+                if invalid:
+                    return self.send_json(invalid[1], invalid[0])
+                items[items.index(old)] = item
+                state[key] = items
+                updated = save_state_to_db(con, state, actor["id"])
+                audit(con, actor, "تعديل سجل", key, rec_id, _client_ip(self))
+            return self.send_json({"ok": True, "item": item, "updatedAt": updated})
+        if method == "DELETE":
+            actor = self.require_auth(rule.get("delete_perm") or rule.get("perm", ""))
+            if not actor:
+                return
+            with _db_lock, db() as con:
+                state, _ = load_state_from_db(con)
+                items = as_list(state.get(key))
+                old = next((x for x in items if isinstance(x, dict) and clean_str(x.get("id")) == rec_id), None)
+                if not old:
+                    return self.send_json({"ok": False, "error": "not_found"}, 404)
+                if not _collection_can_write(actor, rule, old, None, "delete"):
+                    return self.send_json({"ok": False, "error": "forbidden_record"}, 403)
+                state[key] = [x for x in items if not (isinstance(x, dict) and clean_str(x.get("id")) == rec_id)]
+                updated = save_state_to_db(con, state, actor["id"])
+                audit(con, actor, "حذف سجل", key, rec_id, _client_ip(self))
+            return self.send_json({"ok": True, "updatedAt": updated})
+    return self.send_json({"ok": False, "error": "not_found"}, 404)
+
+
+def _leave_balance_items(state: Dict[str, Any], actor: sqlite3.Row, employee_id: str = "") -> List[Dict[str, Any]]:
+    employees = as_list(visible_state_for_actor(state, actor).get("employees"))
+    if employee_id:
+        employees = [e for e in employees if clean_str(e.get("id")) == employee_id]
+    balances: List[Dict[str, Any]] = []
+    leave_types = as_list(as_dict(state.get("settings")).get("leaveTypes"))
+    current_year = server_today().year
+    for e in employees:
+        for t in leave_types:
+            annual = to_float(t.get("annualDays"))
+            if annual <= 0:
+                continue
+            used = 0.0
+            for lv in as_list(state.get("leaves")):
+                if lv.get("employeeId") == e.get("id") and clean_str(lv.get("status")) == "approved" and (lv.get("leaveTypeId") == t.get("id") or lv.get("type") == t.get("name")):
+                    d = parse_date(lv.get("from"))
+                    if d and d.year == current_year:
+                        used += to_float(lv.get("days"), 0)
+            balances.append({"employeeId": e.get("id"), "employeeName": e.get("name"), "leaveTypeId": t.get("id"), "leaveType": t.get("name"), "year": current_year, "annualDays": annual, "usedDays": used, "remainingDays": max(0, annual - used)})
+    return balances
+
+
+def _api_leave_balance_v44(self: "OrbitHandler", qs: Dict[str, List[str]]) -> None:
+    actor = self.require_auth("leaves:read")
+    if not actor:
+        return
+    employee_id = clean_str((qs.get("employeeId") or [""])[0])
+    if employee_id and not user_can_access_employee(actor, employee_id):
+        return self.send_json({"ok": False, "error": "forbidden_employee_scope"}, 403)
+    with _db_lock, db() as con:
+        state, updated = load_state_from_db(con)
+    return self.send_json({"ok": True, "items": _leave_balance_items(state, actor, employee_id), "updatedAt": updated})
+
+
+def _group_sum(rows: List[Dict[str, Any]], key: str, amount_key: str) -> Dict[str, float]:
+    out: Dict[str, float] = {}
+    for r in rows:
+        k = clean_str(r.get(key)) or "غير محدد"
+        out[k] = round(out.get(k, 0.0) + to_float(r.get(amount_key)), 2)
+    return out
+
+
+def _api_reports_summary_v44(self: "OrbitHandler", qs: Dict[str, List[str]]) -> None:
+    actor = self.require_auth("reports:read")
+    if not actor:
+        return
+    month = clean_str((qs.get("month") or [server_today().isoformat()[:7]])[0])
+    with _db_lock, db() as con:
+        state, updated = load_state_from_db(con)
+    visible = visible_state_for_actor(state, actor)
+    employees = as_list(visible.get("employees"))
+    attendance = [a for a in as_list(visible.get("attendance")) if clean_str(a.get("date")).startswith(month)]
+    payroll = [p for p in as_list(visible.get("payroll")) if clean_str(p.get("month")) == month]
+    expenses_all = [x for x in as_list(visible.get("expenses")) if clean_str(x.get("date")).startswith(month)]
+    expenses = [x for x in expenses_all if clean_str(x.get("status")) in ("approved", "paid", "")]
+    expense_by_branch_status: Dict[str, Dict[str, float]] = {}
+    for x in expenses_all:
+        b = clean_str(x.get("branch")) or "غير محدد"
+        st = clean_str(x.get("status")) or "approved"
+        if b not in expense_by_branch_status:
+            expense_by_branch_status[b] = {"total": 0.0, "approved": 0.0, "pending": 0.0, "rejected": 0.0, "count": 0.0}
+        amount = to_float(x.get("amount"))
+        expense_by_branch_status[b]["total"] = round(expense_by_branch_status[b]["total"] + amount, 2)
+        expense_by_branch_status[b]["count"] = round(expense_by_branch_status[b]["count"] + 1, 2)
+        if st in ("approved", "paid", ""):
+            expense_by_branch_status[b]["approved"] = round(expense_by_branch_status[b]["approved"] + amount, 2)
+        elif st == "pending":
+            expense_by_branch_status[b]["pending"] = round(expense_by_branch_status[b]["pending"] + amount, 2)
+        elif st == "rejected":
+            expense_by_branch_status[b]["rejected"] = round(expense_by_branch_status[b]["rejected"] + amount, 2)
+    branch_map = {e.get("id"): clean_str(e.get("branch")) for e in employees}
+    dept_map = {e.get("id"): clean_str(e.get("department")) for e in employees}
+    payroll_by_branch: Dict[str, float] = {}
+    payroll_by_department: Dict[str, float] = {}
+    for p in payroll:
+        emp_id = clean_str(p.get("employeeId"))
+        b = clean_str(p.get("branch") or branch_map.get(emp_id)) or "غير محدد"
+        d = clean_str(dept_map.get(emp_id)) or "غير محدد"
+        payroll_by_branch[b] = round(payroll_by_branch.get(b, 0.0) + to_float(p.get("net")), 2)
+        payroll_by_department[d] = round(payroll_by_department.get(d, 0.0) + to_float(p.get("net")), 2)
+    payload = {
+        "ok": True,
+        "month": month,
+        "updatedAt": updated,
+        "counts": {"employees": len(employees), "attendance": len(attendance), "payroll": len(payroll), "expenses": len(expenses), "leavesPending": len([l for l in as_list(visible.get("leaves")) if clean_str(l.get("status")) == "pending"])},
+        "attendance": {"lateMinutes": sum(to_int(a.get("lateMinutes")) for a in attendance), "overtimeMinutes": sum(to_int(a.get("overtimeMinutes")) for a in attendance), "absentDays": len([a for a in attendance if clean_str(a.get("status")) == "absent"])},
+        "payroll": {"gross": round(sum(to_float(p.get("gross") or p.get("totalEarnings")) for p in payroll), 2), "deductions": round(sum(to_float(p.get("totalDeductions") or p.get("deductions")) for p in payroll), 2), "net": round(sum(to_float(p.get("net")) for p in payroll), 2), "byBranch": payroll_by_branch, "byDepartment": payroll_by_department},
+        "expenses": {"total": round(sum(to_float(x.get("amount")) for x in expenses_all), 2), "approved": round(sum(to_float(x.get("amount")) for x in expenses), 2), "pending": round(sum(to_float(x.get("amount")) for x in expenses_all if clean_str(x.get("status")) == "pending"), 2), "rejected": round(sum(to_float(x.get("amount")) for x in expenses_all if clean_str(x.get("status")) == "rejected"), 2), "byBranch": _group_sum(expenses_all, "branch", "amount"), "byBranchApproved": _group_sum(expenses, "branch", "amount"), "byBranchStatus": expense_by_branch_status, "byCategory": _group_sum(expenses_all, "category", "amount")},
+    }
+    return self.send_json(payload)
+
+
+def _api_settings_v44(self: "OrbitHandler", method: str) -> None:
+    if method == "GET":
+        actor = self.require_auth("settings:read") or self.require_auth()
+        if not actor:
+            return
+        with _db_lock, db() as con:
+            state, updated = load_state_from_db(con)
+        return self.send_json({"ok": True, "settings": as_dict(visible_state_for_actor(state, actor).get("settings")), "updatedAt": updated})
+    if method == "PUT":
+        actor = self.require_auth("settings:write")
+        if not actor:
+            return
+        if not is_admin(actor) and lower(actor["role"]) not in ("manager", "hr"):
+            return self.send_json({"ok": False, "error": "forbidden"}, 403)
+        body = self.read_json()
+        patch = as_dict(body.get("settings") if isinstance(body.get("settings"), dict) else body)
+        protected = {"users", "employees", "payroll", "attendance"}
+        for k in list(patch):
+            if k in protected:
+                patch.pop(k, None)
+        with _db_lock, db() as con:
+            state, _ = load_state_from_db(con)
+            settings = as_dict(state.setdefault("settings", {}))
+            settings.update(patch)
+            state["settings"] = settings
+            updated = save_state_to_db(con, state, actor["id"])
+            audit(con, actor, "تعديل إعدادات", "الإعدادات", "تحديث جزئي", _client_ip(self))
+        return self.send_json({"ok": True, "settings": settings, "updatedAt": updated})
+    return self.send_json({"ok": False, "error": "not_found"}, 404)
+
+
+_original_handle_api_v44_base = OrbitHandler.handle_api
+
+def _handle_api_v44(self: "OrbitHandler", method: str) -> None:
+    route, parts, qs = self.route()
+    try:
+        if len(parts) >= 3 and parts[:2] == ["api", "collections"]:
+            return _api_collections_v44(self, method, parts[2], parts[3:], qs)
+        if len(parts) >= 2 and parts[:2] == ["api", "records"]:
+            # Friendly alias used by some mobile wrappers.
+            if len(parts) < 3:
+                return self.send_json({"ok": False, "error": "collection_required"}, 400)
+            return _api_collections_v44(self, method, parts[2], parts[3:], qs)
+        if route == "/api/leaves/balance" and method == "GET":
+            return _api_leave_balance_v44(self, qs)
+        if route == "/api/reports/summary" and method == "GET":
+            return _api_reports_summary_v44(self, qs)
+        if route == "/api/settings" and method in ("GET", "PUT"):
+            return _api_settings_v44(self, method)
+        return _original_handle_api_v44_base(self, method)
+    except ValueError as exc:
+        msg = str(exc)
+        if msg.startswith("validation_failed::"):
+            return self.send_json({"ok": False, "error": "validation_failed", "details": json.loads(msg.split("::", 1)[1])}, 422)
+        return self.send_json({"ok": False, "error": "bad_request", "message": msg}, 400)
+    except Exception as exc:
+        return self.send_json({"ok": False, "error": "server_error", "message": str(exc)}, 500)
+
+OrbitHandler.handle_api = _handle_api_v44
+
+
+def _api_health_v44(self: "OrbitHandler") -> None:
+    with _db_lock, db() as con:
+        state, updated_at = load_state_from_db(con)
+        keys = ["employees", "users", "attendance", "payroll", "leaves", "missions", "expenses", "adjustments", "custodies", "advances", "dues", "documents"]
+        counts = {k: len(as_list(state.get(k))) for k in keys}
+        counts.update({
+            "structuredEmployees": con.execute("SELECT COUNT(*) c FROM hr_employees").fetchone()["c"],
+            "structuredAttendance": con.execute("SELECT COUNT(*) c FROM hr_attendance").fetchone()["c"],
+            "structuredPayroll": con.execute("SELECT COUNT(*) c FROM hr_payroll").fetchone()["c"],
+        })
+        schema = con.execute("SELECT value FROM system_meta WHERE key='schema_version'").fetchone() if con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='system_meta'").fetchone() else None
+    self.send_json({"ok": True, "version": APP_VERSION, "database": str(DB_PATH.name), "updatedAt": updated_at, "counts": counts, "timezone": str(company_timezone(state)), "serverTime": local_now_iso(), "schemaVersion": schema["value"] if schema else "4.4.0", "productionCandidate": True, "apis": {"collections": sorted(ALLOWED_COLLECTION_KEYS), "leaveBalance": True, "reportsSummary": True}})
+
+OrbitHandler.api_health = _api_health_v44
+
+# Re-wrap init_db once more to mark schema version 4.4.0 and clean demo plaintext leftovers.
+_init_db_before_v44 = init_db
+
+def init_db() -> None:  # type: ignore[override]
+    _init_db_before_v44()
+    with _db_lock, db() as con:
+        con.execute("CREATE TABLE IF NOT EXISTS system_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)")
+        con.execute("INSERT OR REPLACE INTO system_meta(key,value,updated_at) VALUES('schema_version','4.4.0',?)", (utc_now(),))
+        state, _ = load_state_from_db(con)
+        clean = sanitize_state(state)
+        if clean != state:
+            con.execute("UPDATE app_state SET data=?, updated_at=?, updated_by=? WHERE id=1", (json_dumps(clean), utc_now(), "security_v44"))
+
+
+
+# ---- v4.4.1 sync-scope safety patch ----
+def _actor_may_sync_collection(actor: sqlite3.Row, rule: Dict[str, Any]) -> bool:
+    if is_admin(actor):
+        return True
+    role = lower(actor["role"])
+    if has_permission(actor, rule.get("perm", "")):
+        return True
+    return bool(role == "employee" and rule.get("employee_create") and rule.get("owner") and has_permission(actor, rule.get("perm", "")))
+
+
+def _owned_records_for_sync(actor: sqlite3.Row, rule: Dict[str, Any], records: Any) -> List[Dict[str, Any]]:
+    items = [x for x in as_list(records) if isinstance(x, dict)]
+    if is_admin(actor) or lower(actor["role"]) in ("manager", "hr", "finance"):
+        return items
+    owner = rule.get("owner")
+    if not owner:
+        return []
+    return [x for x in items if clean_str(x.get(owner)) == clean_str(actor["employee_id"])]
+
+
+def _api_sync_v44(self: "OrbitHandler") -> None:
+    actor = self.require_auth()
+    if not actor:
+        return
+    body = self.read_json()
+    client_state = body.get("state")
+    if not isinstance(client_state, dict):
+        return self.send_json({"ok": False, "error": "invalid_state"}, 400)
+    client_state = sanitize_state(client_state)
+    base_updated = clean_str(body.get("baseUpdatedAt"))
+    dirty_keys = set(as_list(body.get("dirtyKeys")))
+    with _db_lock, db() as con:
+        server_state, server_updated = load_state_from_db(con)
+        if base_updated and base_updated != server_updated:
+            return self.send_json({"ok": False, "error": "sync_conflict", "message": "تم تعديل البيانات من مستخدم آخر؛ تم إيقاف الحفظ لمنع فقد البيانات", "updatedAt": server_updated, "state": visible_state_for_actor(server_state, actor)}, 409)
+        changed: List[str] = []
+        if "settings" in client_state and client_state.get("settings") != server_state.get("settings"):
+            if has_permission(actor, "settings:write") or is_admin(actor):
+                server_state["settings"] = as_dict(client_state.get("settings"))
+                changed.append("settings")
+        effective_rules = dict(COLLECTION_API_RULES)
+        for key, rule in effective_rules.items():
+            # Do not interpret missing/hidden collections as deletes. This is critical for employee-scoped state.
+            if key not in client_state:
+                continue
+            if dirty_keys and key not in dirty_keys:
+                continue
+            if not _actor_may_sync_collection(actor, rule):
+                continue
+            old_scope = _owned_records_for_sync(actor, rule, server_state.get(key))
+            new_scope = _owned_records_for_sync(actor, rule, client_state.get(key))
+            old_map = _record_map(old_scope)
+            new_map = _record_map(new_scope)
+            operations: List[Tuple[str, str, Optional[Dict[str, Any]], Optional[Dict[str, Any]]]] = []
+            for rid in sorted(set(old_map) | set(new_map)):
+                old, new = old_map.get(rid), new_map.get(rid)
+                if old is None and new is not None:
+                    operations.append(("create", rid, None, new))
+                elif old is not None and new is None:
+                    operations.append(("delete", rid, old, None))
+                elif old != new:
+                    operations.append(("update", rid, old, new))
+            if not operations:
+                continue
+            full_items = [x for x in as_list(server_state.get(key)) if isinstance(x, dict)]
+            full_map = _record_map(full_items)
+            for action, rid, old, new in operations:
+                if not _collection_can_write(actor, rule, old, new, action):
+                    return self.send_json({"ok": False, "error": "forbidden_record", "collection": key, "recordId": rid}, 403)
+                if new is not None:
+                    item = _prepare_collection_record(actor, key, rule, new, old, action)
+                    invalid = _validate_collection_record(server_state, key, item, rid if old else "")
+                    if invalid:
+                        return self.send_json(invalid[1], invalid[0])
+                    full_map[clean_str(item.get("id"))] = item
+                else:
+                    full_map.pop(rid, None)
+            server_state[key] = list(full_map.values())
+            changed.append(key)
+            audit(con, actor, "مزامنة سجلات", key, f"{len(operations)} عملية سجل", _client_ip(self))
+        if not changed:
+            return self.send_json({"ok": True, "updatedAt": server_updated, "state": visible_state_for_actor(server_state, actor), "changed": []})
+        updated = save_state_to_db(con, server_state, actor["id"])
+        audit(con, actor, "حفظ تغييرات", "النظام", "، ".join(changed), _client_ip(self))
+        visible = visible_state_for_actor(server_state, actor)
+    return self.send_json({"ok": True, "updatedAt": updated, "state": visible, "changed": changed})
+
+# Patch the v4.4 router to use the scoped sync implementation.
+_prev_handle_api_v441 = OrbitHandler.handle_api
+
+def _handle_api_v441(self: "OrbitHandler", method: str) -> None:
+    route, parts, qs = self.route()
+    if route == "/api/sync" and method == "PUT":
+        try:
+            return _api_sync_v44(self)
+        except ValueError as exc:
+            msg = str(exc)
+            if msg.startswith("validation_failed::"):
+                return self.send_json({"ok": False, "error": "validation_failed", "details": json.loads(msg.split("::", 1)[1])}, 422)
+            return self.send_json({"ok": False, "error": "bad_request", "message": msg}, 400)
+        except Exception as exc:
+            return self.send_json({"ok": False, "error": "server_error", "message": str(exc)}, 500)
+    return _prev_handle_api_v441(self, method)
+
+OrbitHandler.handle_api = _handle_api_v441
+APP_VERSION = "4.8.0-expenses-by-branch"
+
+
+# ==========================================================================
+# Orbit HR v4.6.0 final production hardening layer
+# - Auto-load .env for non-systemd starts.
+# - Use secure bootstrap passwords from .env, never plaintext in app_state.
+# - Tighten filesystem permissions on Linux hosts.
+# - Hide detailed /api/health data unless authenticated as admin/manager/hr/finance.
+# ==========================================================================
+APP_VERSION = "4.8.0-expenses-by-branch"
+
+
+def _orbit_load_env_file(path: Path) -> None:
+    try:
+        if not path.exists():
+            return
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+    except Exception as exc:
+        print(f"Warning: could not load .env file {path}: {exc}")
+
+
+_orbit_load_env_file(ROOT / ".env")
+
+HOST = os.environ.get("ORBIT_HR_HOST", HOST)
+PORT = int(os.environ.get("PORT", os.environ.get("ORBIT_HR_PORT", str(PORT))))
+PUBLIC_ORIGIN = os.environ.get("ORBIT_HR_PUBLIC_ORIGIN", PUBLIC_ORIGIN).rstrip("/")
+ALLOWED_ORIGINS = os.environ.get("ORBIT_HR_ALLOWED_ORIGINS", PUBLIC_ORIGIN)
+APP_TIMEZONE = os.environ.get("ORBIT_HR_TIMEZONE", APP_TIMEZONE)
+try:
+    SERVER_TZ = ZoneInfo(APP_TIMEZONE)
+except Exception:
+    SERVER_TZ = ZoneInfo("Africa/Cairo")
+MAX_UPLOAD_BYTES = int(os.environ.get("ORBIT_HR_MAX_UPLOAD_BYTES", str(MAX_UPLOAD_BYTES)))
+
+_DEFAULT_BOOTSTRAP_PASSWORD = os.environ.get("ORBIT_HR_DEFAULT_BOOTSTRAP_PASSWORD", "")
+DEFAULT_BOOTSTRAP_PASSWORDS = {
+    "admin@hr.local": os.environ.get("ORBIT_HR_BOOTSTRAP_ADMIN_PASSWORD", _DEFAULT_BOOTSTRAP_PASSWORD),
+    "manager@hr.local": os.environ.get("ORBIT_HR_BOOTSTRAP_MANAGER_PASSWORD", _DEFAULT_BOOTSTRAP_PASSWORD),
+    "employee@hr.local": os.environ.get("ORBIT_HR_BOOTSTRAP_EMPLOYEE_PASSWORD", _DEFAULT_BOOTSTRAP_PASSWORD),
+}
+
+
+def _truthy_env(name: str, default: str = "false") -> bool:
+    return os.environ.get(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _chmod_safe(path: Path, mode: int) -> None:
+    try:
+        if path.exists() and os.name == "posix":
+            os.chmod(path, mode)
+    except Exception:
+        pass
+
+
+_ensure_dirs_before_v46 = ensure_dirs
+
+def ensure_dirs() -> None:  # type: ignore[override]
+    _ensure_dirs_before_v46()
+    for path in (DATA_DIR, UPLOAD_DIR, BACKUP_DIR):
+        _chmod_safe(path, 0o700)
+    _chmod_safe(SECRET_PATH, 0o600)
+    _chmod_safe(ROOT / ".env", 0o600)
+    _chmod_safe(INITIAL_CREDENTIALS_PATH, 0o600)
+
+
+_db_before_v46 = db
+
+def db() -> sqlite3.Connection:  # type: ignore[override]
+    con = _db_before_v46()
+    _chmod_safe(DB_PATH, 0o600)
+    _chmod_safe(Path(str(DB_PATH) + "-wal"), 0o600)
+    _chmod_safe(Path(str(DB_PATH) + "-shm"), 0o600)
+    return con
+
+
+def sync_users_from_state(con: sqlite3.Connection, state: Dict[str, Any]) -> None:  # type: ignore[override]
+    users = as_list(state.get("users"))
+    now = utc_now()
+    generated: List[str] = []
+    force_change = _truthy_env("ORBIT_HR_FORCE_PASSWORD_CHANGE", "false")
+    for u in users:
+        if not isinstance(u, dict):
+            continue
+        email = lower(u.get("email"))
+        if not email:
+            continue
+        user_id = clean_str(u.get("id")) or f"u_{hashlib.sha1(email.encode()).hexdigest()[:10]}"
+        permissions = u.get("permissions") or u.get("customPermissions") or []
+        role = lower(u.get("role") or "employee")
+        old = con.execute("SELECT id FROM auth_users WHERE email=?", (email,)).fetchone()
+        if old:
+            con.execute(
+                "UPDATE auth_users SET employee_id=?, name=?, role=?, active=?, permissions=?, updated_at=? WHERE email=?",
+                (u.get("employeeId") or "", u.get("name") or email, role, 1 if u.get("active", True) else 0, json_dumps(permissions), now, email),
+            )
+            continue
+        env_key = f"ORBIT_HR_BOOTSTRAP_{role.upper()}_PASSWORD"
+        temp_password = os.environ.get(env_key) or os.environ.get("ORBIT_HR_DEFAULT_BOOTSTRAP_PASSWORD") or DEFAULT_BOOTSTRAP_PASSWORDS.get(email, "")
+        generated_by_server = False
+        if not strong_password(temp_password):
+            temp_password = secrets.token_urlsafe(18) + "A7"
+            generated_by_server = True
+        con.execute(
+            "INSERT INTO auth_users(id,employee_id,name,email,password_hash,role,active,permissions,created_at,updated_at,must_change_password) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            (user_id, u.get("employeeId") or "", u.get("name") or email, email, password_hash(temp_password), role, 1 if u.get("active", True) else 0, json_dumps(permissions), now, now, 1 if force_change else 0),
+        )
+        label = "Temporary password" if generated_by_server else "Configured bootstrap password"
+        generated.append(f"Email: {email}\n{label}: {temp_password}\nMust change password: {force_change}\n")
+    _append_initial_credentials(generated)
+
+
+_init_db_before_v46 = init_db
+
+def init_db() -> None:  # type: ignore[override]
+    ensure_dirs()
+    _init_db_before_v46()
+    ensure_dirs()
+    with _db_lock, db() as con:
+        con.execute("CREATE TABLE IF NOT EXISTS system_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)")
+        con.execute("INSERT OR REPLACE INTO system_meta(key,value,updated_at) VALUES('schema_version','4.8.0',?)", (utc_now(),))
+        # Enforce the requested configured password on first deploy only when explicitly enabled.
+        # Default is disabled to avoid overwriting passwords after users start using the system.
+        if _truthy_env("ORBIT_HR_RESET_BOOTSTRAP_PASSWORDS_ON_START", "false"):
+            for email, password in DEFAULT_BOOTSTRAP_PASSWORDS.items():
+                if strong_password(password):
+                    con.execute("UPDATE auth_users SET password_hash=?, must_change_password=?, updated_at=? WHERE email=?", (password_hash(password), 1 if _truthy_env("ORBIT_HR_FORCE_PASSWORD_CHANGE", "false") else 0, utc_now(), email))
+            con.execute("DELETE FROM api_sessions")
+        state, _ = load_state_from_db(con)
+        clean = sanitize_state(state)
+        if clean != state:
+            con.execute("UPDATE app_state SET data=?, updated_at=?, updated_by=? WHERE id=1", (json_dumps(clean), utc_now(), "security_v46"))
+        _chmod_safe(DB_PATH, 0o600)
+        _chmod_safe(Path(str(DB_PATH) + "-wal"), 0o600)
+        _chmod_safe(Path(str(DB_PATH) + "-shm"), 0o600)
+
+
+def _api_health_v46(self: "OrbitHandler") -> None:
+    actor = current_user(self)
+    if not actor:
+        return self.send_json({"ok": True, "status": "online", "version": APP_VERSION, "serverTime": local_now_iso()})
+    role = lower(actor["role"])
+    if not (is_admin(actor) or role in ("manager", "hr", "finance") or has_permission(actor, "quality:read") or has_permission(actor, "reports:read")):
+        return self.send_json({"ok": True, "status": "online", "version": APP_VERSION, "serverTime": local_now_iso()})
+    with _db_lock, db() as con:
+        state, updated_at = load_state_from_db(con)
+        keys = ["employees", "users", "attendance", "payroll", "leaves", "missions", "expenses", "adjustments", "custodies", "advances", "dues", "documents"]
+        counts = {k: len(as_list(state.get(k))) for k in keys}
+        counts.update({
+            "structuredEmployees": con.execute("SELECT COUNT(*) c FROM hr_employees").fetchone()["c"],
+            "structuredAttendance": con.execute("SELECT COUNT(*) c FROM hr_attendance").fetchone()["c"],
+            "structuredPayroll": con.execute("SELECT COUNT(*) c FROM hr_payroll").fetchone()["c"],
+        })
+        schema = con.execute("SELECT value FROM system_meta WHERE key='schema_version'").fetchone() if con.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='system_meta'").fetchone() else None
+    self.send_json({
+        "ok": True,
+        "status": "online",
+        "version": APP_VERSION,
+        "updatedAt": updated_at,
+        "counts": counts,
+        "timezone": APP_TIMEZONE,
+        "serverTime": local_now_iso(),
+        "schemaVersion": schema["value"] if schema else "4.8.0",
+        "productionCandidate": False,
+        "productionReady": True,
+        "apis": {"collections": sorted(ALLOWED_COLLECTION_KEYS), "leaveBalance": True, "reportsSummary": True},
+    })
+
+OrbitHandler.api_health = _api_health_v46
+
+
+def _end_headers_v46(self: "OrbitHandler") -> None:
+    origin = self.headers.get("Origin")
+    allowed = {x.strip() for x in str(ALLOWED_ORIGINS or "").split(",") if x.strip()}
+    if origin and origin in allowed:
+        self.send_header("Access-Control-Allow-Origin", origin)
+    elif not origin and PUBLIC_ORIGIN:
+        self.send_header("Access-Control-Allow-Origin", PUBLIC_ORIGIN)
+    self.send_header("Vary", "Origin")
+    self.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+    self.send_header("Access-Control-Allow-Headers", "Content-Type,Authorization")
+    self.send_header("X-Content-Type-Options", "nosniff")
+    self.send_header("X-Frame-Options", "SAMEORIGIN")
+    self.send_header("Referrer-Policy", "no-referrer")
+    self.send_header("Permissions-Policy", "camera=(self), geolocation=(self)")
+    self.send_header("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'")
+    if urllib.parse.urlsplit(self.path).path.startswith("/api/"):
+        self.send_header("Cache-Control", "no-store, private")
+    elif urllib.parse.urlsplit(self.path).path.endswith("sw.js"):
+        self.send_header("Cache-Control", "no-cache")
+    SimpleHTTPRequestHandler.end_headers(self)
+
+OrbitHandler.end_headers = _end_headers_v46
 
 
 def main() -> None:
@@ -3115,6 +3825,7 @@ def main() -> None:
     url = f"http://{HOST}:{PORT}"
     print(f"Orbit HR v{APP_VERSION} Production Backend")
     print(f"Serving PWA and API at: {url}")
+    print(f"Public origin: {PUBLIC_ORIGIN or 'not fixed (same-origin/default)'}")
     print(f"SQLite database: {DB_PATH}")
     print("For production deployment: place behind HTTPS reverse proxy and set ORBIT_HR_ALLOWED_ORIGINS.")
     try:
@@ -3128,3 +3839,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
